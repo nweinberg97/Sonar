@@ -5,6 +5,10 @@ set -euo pipefail
 MODEL="${AI_MODEL:-llama3.2:3b}"
 
 if ! command -v ollama >/dev/null 2>&1; then
+  # The installer unpacks .tar.zst archives; make sure zstd is available.
+  if ! command -v zstd >/dev/null 2>&1; then
+    sudo apt-get update -qq && sudo apt-get install -y -qq zstd
+  fi
   echo "Sonar: installing Ollama (official installer from ollama.com)…"
   curl -fsSL https://ollama.com/install.sh | sh
 fi
