@@ -95,6 +95,8 @@ export function SettingsView() {
         </section>
       )}
 
+      <Backups />
+
       {status?.demoTools && (
         <section aria-labelledby="testing">
           <h2 id="testing" className="font-display text-xl font-semibold tracking-tight">
@@ -189,5 +191,83 @@ function Tool({ title, body, children }: { title: string; body: string; children
       </div>
       <div className="flex flex-wrap items-center gap-2">{children}</div>
     </div>
+  );
+}
+
+interface BackupFile {
+  name: string;
+  bytes: number;
+  createdAt: string;
+}
+
+function Backups() {
+  const [list, setList] = useState<BackupFile[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const load = () =>
+    api<{ backups: BackupFile[] }>("/api/backups")
+      .then((d) => setList(d.backups))
+      .catch(() => setList([]));
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const label = (n: string) =>
+    n.includes("before-") ? "Before a reset" : n.includes("hourly") ? "Hourly" : "Manual";
+
+  return (
+    <section className="mb-14" aria-labelledby="backups">
+      <h2 id="backups" className="font-display text-xl font-semibold tracking-tight">
+        Backups
+      </h2>
+      <p className="mt-2 max-w-2xl text-ink/60">
+        Sonar copies its whole database automatically: every hour while answers are coming in, and before any reset or
+        delete. Download one after each test round to keep a copy off this machine.
+      </p>
+      <div className="mt-5 flex items-center gap-3">
+        <button
+          className={btn.dark}
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setMsg("");
+            try {
+              const r = await api<{ message: string }>("/api/backups", { method: "POST" });
+              setMsg(r.message);
+              await load();
+            } catch (e) {
+              setMsg((e as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? "Backing up…" : "Back up now"}
+        </button>
+        {msg && (
+          <span role="status" className="text-sm text-ink/60">
+            {msg}
+          </span>
+        )}
+      </div>
+      {list && list.length > 0 && (
+        <ul className="mt-6 divide-y divide-ink/8 border-y border-ink/8">
+          {list.slice(0, 8).map((b) => (
+            <li key={b.name} className="flex flex-wrap items-center justify-between gap-3 py-3 text-[0.95rem]">
+              <span>
+                {new Date(b.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                <span className="ml-3 text-sm text-ink/45">
+                  {label(b.name)}, {Math.max(1, Math.round(b.bytes / 1024))} KB
+                </span>
+              </span>
+              <a href={`/api/backups/download?name=${encodeURIComponent(b.name)}`} download={b.name} className={btn.quiet}>
+                Download
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+      {list && list.length === 0 && <p className="mt-5 text-sm text-ink/45">No backups yet. The first one is made within the hour.</p>}
+    </section>
   );
 }

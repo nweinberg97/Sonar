@@ -10,6 +10,7 @@ next-env.d.ts
 # local database + secrets
 prisma/*.db
 prisma/*.db-journal
+prisma/backups/
 .env
 .env.local
 

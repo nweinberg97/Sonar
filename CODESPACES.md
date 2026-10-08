@@ -33,10 +33,32 @@ Your data survives stops. When you come back, open the Codespace from **github.c
 
 ## Stay within the free allowance
 
-GitHub gives personal accounts a monthly allowance of Codespace hours and storage (see **Settings → Billing → Codespaces** for your numbers). A 2-core Codespace uses it about twice as fast as the clock. To save it:
+You're limited by **time the Codespace is running**, not by anything you do in it. A free GitHub account includes 120 compute hours a month. A 2-core Codespace counts double, so that's roughly **60 hours of Sonar running**. Storage (15 GB a month) is not a concern: Sonar and the speech model use well under 1 GB.
 
-- **Stop** the Codespace when you're not testing: github.com/codespaces → `…` → **Stop codespace**.
-- Don't delete it until you've exported what you need: deleting erases the database.
+- **It only uses hours while it's running.** It runs when you open it and stops when you stop it, or after the idle timeout.
+- **Stop it when you're not testing:** github.com/codespaces → `…` → **Stop codespace**.
+- **Use the long idle timeout only on test days.** A 4-hour timeout you forget about uses 8 hours of your allowance.
+- **See what you've used:** github.com → your profile picture → Settings → Billing. GitHub also emails you at 90% and 100%.
+- **No surprise bills:** without a payment method on your account, GitHub blocks usage when you hit the limit; it doesn't charge you. Sonar just won't start again until next month.
+
+## Don't lose your data
+
+GitHub **automatically deletes a Codespace after 30 days stopped**, database included. To prevent that, on github.com/codespaces open the `…` menu on your Codespace and choose **Keep codespace**. GitHub also emails you a day before any deletion.
+
+Sonar backs itself up too (**Settings → Backups**):
+
+- a full copy of the database every hour while answers are coming in, and before any reset, delete or clear;
+- the newest 30 copies are kept inside the Codespace;
+- **Download** saves a copy to your computer. Do this after each test round: it's your safety net if the Codespace is ever deleted, and it lets you keep round 1's results before you reset for round 2.
+
+The downloaded file is a normal SQLite database. Open it with the free [DB Browser for SQLite](https://sqlitebrowser.org) to look at the raw tables.
+
+**To restore a backup:** in the sonar terminal press `Ctrl+C`, then run (with the file name from Settings):
+
+```bash
+cp prisma/backups/sonar-YYYYMMDD-HHMMSS-....db prisma/dev.db
+npm run serve
+```
 
 ## Security, in plain terms
 

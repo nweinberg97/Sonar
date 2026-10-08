@@ -12,6 +12,7 @@ import {
   startRespondent,
   wipeAll,
 } from "@/lib/data";
+import { backupNow } from "@/lib/backup";
 import { fail, handle, json } from "@/lib/http";
 import { demoToolsEnabled } from "@/lib/services/config";
 import { insightService } from "@/lib/services/insights";
@@ -27,17 +28,20 @@ export async function POST(req: Request) {
 
     switch (body.action) {
       case "reset": {
+        await backupNow("before-reset");
         await resetAndSeed();
-        return json({ ok: true, message: "Workspace reset to the demo data." });
+        return json({ ok: true, message: "Workspace reset to the demo data. A backup of what was there is in Backups." });
       }
       case "empty": {
+        await backupNow("before-delete");
         await wipeAll();
-        return json({ ok: true, message: "Everything deleted. You're starting from a blank workspace." });
+        return json({ ok: true, message: "Everything deleted. A backup of what was there is in Backups." });
       }
       case "clear": {
         const sessionId = isId(body.sessionId) ? body.sessionId : undefined;
+        await backupNow("before-clear");
         await clearResponses(sessionId);
-        return json({ ok: true, message: "Responses cleared." });
+        return json({ ok: true, message: "Responses cleared. A backup of what was there is in Backups." });
       }
       case "generate": {
         const sessionId = requireId(body.sessionId, "Sonar");
