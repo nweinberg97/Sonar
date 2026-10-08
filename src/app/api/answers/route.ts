@@ -1,5 +1,6 @@
 import { createResponse, getRespondent, getSession, saveInsight } from "@/lib/data";
 import { fail, handle, json } from "@/lib/http";
+import { allow, TOO_MANY } from "@/lib/rate-limit";
 import { insightService } from "@/lib/services/insights";
 import { LIMITS } from "@/lib/session-input";
 import { cleanText, readJson, requireId } from "@/lib/validate";
@@ -9,6 +10,7 @@ export const dynamic = "force-dynamic";
 /** Save an accepted answer, then turn it into structured insight. */
 export async function POST(req: Request) {
   return handle(async () => {
+    if (!allow(req, "answers", 40, 10 * 60_000)) return fail(TOO_MANY, 429);
     const body = await readJson(req);
     const respondentId = requireId(body.respondentId, "respondent");
     const questionId = requireId(body.questionId, "question");

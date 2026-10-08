@@ -6,40 +6,36 @@ Sonar is a prototype for one question: **is giving feedback by speaking genuinel
 
 ## Run it
 
+**To test with real people for free, use GitHub Codespaces.** Step-by-step guide: [CODESPACES.md](CODESPACES.md). Short version: Code → Codespaces → Create codespace, copy the password it prints, set port 3000 to Public, share your Sonar's link.
+
+**On your own computer:**
+
 ```bash
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000. That's it. On first run Sonar creates `.env` from `.env.example`, builds a local SQLite database and loads the demo workspace. No API keys needed.
+Open http://localhost:3000 and sign in with the password printed in the terminal (any username). On first run Sonar creates `.env`, generates that password, builds a local SQLite database, loads the demo workspace and starts downloading the speech model in the background. No accounts or API keys needed.
 
-- **Creator workspace:** http://localhost:3000/feedback
-- **Respondent link (demo):** http://localhost:3000/s/forth-community
+- **Creator workspace:** `/feedback` (password protected)
+- **Respondent link (demo):** `/s/forth-community` (open to anyone)
 
-Requires Node 20+.
+Requires Node 20+. Phones only allow the microphone over https, so for phone testing use Codespaces (or any https tunnel to your machine).
 
-### Testing on a phone
+## Speech to text: open source by default
 
-Browsers only allow the microphone on `https` or `localhost`. To try the respondent flow on a real phone, expose your dev server over https, e.g. `npx localtunnel --port 3000` or `cloudflared tunnel --url http://localhost:3000`, and open the `/s/...` link it gives you. Set `NEXT_PUBLIC_APP_URL` to that address so share links match.
+Sonar transcribes with **Whisper**, OpenAI's open-source speech model, running **on your own server** through Hugging Face's [transformers.js](https://github.com/huggingface/transformers.js). Free, no key, no third party hears the audio.
 
-## Demo mode vs live mode
+- The browser converts each recording to 16 kHz WAV, the server transcribes it in memory and discards it.
+- The model (`Xenova/whisper-base.en`, about 80 MB quantized) downloads once into `./.models`. `npm run whisper:prefetch` fetches it ahead of time; `TRANSCRIPTION_OFFLINE=true` then blocks any further downloads. Pin `TRANSCRIPTION_MODEL_REVISION` to a commit hash if you want downloads to be reproducible.
+- Speed vs accuracy: `TRANSCRIPTION_MODEL=Xenova/whisper-tiny.en` is faster, `Xenova/whisper-small.en` is more accurate.
+- `TRANSCRIPTION_PROVIDER=mock` gives sample transcripts for offline demos. `openai` or `groq` (with `TRANSCRIPTION_API_KEY`) use hosted Whisper instead.
 
-With no keys, Sonar runs in demo mode: recording, the live waveform and the whole flow work for real, but transcripts come from a bank of natural spoken answers matched to the question, and insights come from a built-in extractor. Typed answers get real (heuristic) analysis.
-
-To go live, set keys in `.env` and restart:
-
-```bash
-TRANSCRIPTION_PROVIDER=openai     # or groq
-TRANSCRIPTION_API_KEY=sk-...
-AI_PROVIDER=anthropic             # or openai, groq
-AI_API_KEY=...
-```
-
-Optional: `TRANSCRIPTION_MODEL`, `TRANSCRIPTION_BASE_URL`, `AI_MODEL`, `AI_BASE_URL`. Any OpenAI-compatible endpoint works for either. If a live call fails, Sonar falls back to the built-in extractor rather than losing the answer.
+**Insights** use Sonar's built-in extractor by default, also free and local. Optional upgrades: `AI_PROVIDER=ollama` for an open-source model on your own machine ([Ollama](https://ollama.com), no key), or `anthropic`, `openai`, `groq` with `AI_API_KEY`. If a model call fails, Sonar falls back to the built-in extractor rather than losing the answer.
 
 ## Running experiments
 
-**Settings → Testing tools** (on in development; set `SONAR_DEMO_TOOLS=true` to keep them in a production build):
+**Settings → Testing tools** (on by default via `SONAR_DEMO_TOOLS=true` in `.env`):
 
 - Generate sample responses for any Sonar
 - Clear a Sonar's responses
@@ -64,21 +60,28 @@ Creator
 | `src/components/respondent/RespondentFlow.tsx` | The respondent experience: intro, recording, processing, review, typed fallback, completion |
 | `src/components/useRecorder.ts`, `Waveform.tsx` | Mic capture and the real-input waveform |
 | `src/components/studio/*` | Creator workspace: feedback list, builder, responses, insights, settings |
-| `src/lib/services/transcription.ts` | `transcriptionService` with mock, OpenAI and Groq providers |
-| `src/lib/services/insights.ts` | `insightService.analyze()` and `.synthesize()` with Anthropic, OpenAI-compatible and mock providers |
+| `src/lib/services/transcription.ts` | `transcriptionService` with local Whisper, mock, OpenAI and Groq providers |
+| `src/lib/services/whisper-local.ts` | Open-source Whisper on the server (transformers.js) |
+| `src/middleware.ts` | Creator password |
+| `src/lib/services/insights.ts` | `insightService.analyze()` and `.synthesize()`: built-in extractor, Ollama, Anthropic, OpenAI-compatible |
 | `src/lib/services/prompts.ts` | The extraction and synthesis system prompts. Iterate here between test rounds. |
 | `src/lib/services/mock.ts` | Demo transcripts and the offline extractor |
 | `src/lib/data.ts` | Every database query, as plain SQL |
 | `src/lib/seed-data.ts` | The Forth Community demo dataset |
 | `prisma/schema.prisma` | Schema: workspaces, feedback sessions, questions, respondents, responses, AI insights, syntheses |
 
-### Privacy
+### Privacy and security
 
-Transcript-first, audio-ephemeral. Audio exists only in the browser and in memory for the length of one transcription request. Respondents are identified by a random anonymous id, with no name, email or account. This is a prototype: it avoids obvious mistakes (server-side validation, secrets stay on the server, no direct database access from the browser) but makes no compliance claims.
+- **Transcript-first, audio-ephemeral.** With local Whisper, audio exists only in the browser and in the server's memory for one request. It never reaches a third party.
+- **Anonymous respondents.** A random id groups one person's answers. No name, email or account.
+- **Creator side is password-protected** (`SONAR_PASSWORD`, generated on first run). Respondent pages and the three endpoints they use are the only open routes.
+- **Rate limits** on the public endpoints, so one visitor can't tie up the server.
+- Server-side validation on every input, secrets stay on the server, the browser never touches the database.
+- This is a prototype: it avoids obvious mistakes but makes no compliance claims.
 
 ### Not built, on purpose
 
-Accounts and auth, billing, branching logic, integrations, exports, permanent audio storage. The creator workspace has no login, so don't put it on the public internet as-is: share respondent links, keep `/feedback` to yourself.
+User accounts (one shared creator password instead), billing, branching logic, integrations, exports, permanent audio storage.
 
 ## What to watch in user tests
 

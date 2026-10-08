@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Open-source Whisper runs through ONNX Runtime's native Node bindings; keep them out of the bundle.
+  serverExternalPackages: ["@huggingface/transformers", "onnxruntime-node", "sharp"],
   // Audio clips are posted to /api/transcribe. Keep the ceiling generous but bounded.
   experimental: {
     serverActions: { bodySizeLimit: "12mb" },

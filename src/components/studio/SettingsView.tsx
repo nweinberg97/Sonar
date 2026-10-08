@@ -5,12 +5,13 @@ import { api } from "@/lib/client";
 import { btn, ErrorNote, Loading, PageHeader, SessionPicker, useSessions } from "./ui";
 
 interface Status {
+  auth: boolean;
   transcription: { provider: string; model: string; misconfigured: boolean };
   ai: { provider: string; model: string; misconfigured: boolean };
   demoTools: boolean;
 }
 
-const NAMES: Record<string, string> = { mock: "Demo", openai: "OpenAI", groq: "Groq", anthropic: "Anthropic" };
+const NAMES: Record<string, string> = { openai: "OpenAI", groq: "Groq", anthropic: "Anthropic", ollama: "Ollama (open source, this machine)" };
 
 export function SettingsView() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -55,25 +56,39 @@ export function SettingsView() {
             Voice and AI
           </h2>
           <dl className="mt-5 divide-y divide-ink/8 border-y border-ink/8">
-            <Provider label="Speech to text" p={status.transcription} />
-            <Provider label="Insights" p={status.ai} />
+            <Provider
+              label="Speech to text"
+              p={status.transcription}
+              text={
+                status.transcription.provider === "local"
+                  ? `Open-source Whisper on this server (${status.transcription.model.split("/").pop()})`
+                  : status.transcription.provider === "mock"
+                    ? "Sample transcripts (demo)"
+                    : undefined
+              }
+            />
+            <Provider label="Insights" p={status.ai} text={status.ai.provider === "mock" ? "Sonar's built-in extractor" : undefined} />
+            <div className="flex flex-wrap items-center justify-between gap-3 py-4">
+              <dt className="font-medium">Creator sign-in</dt>
+              <dd className="text-ink/65">{status.auth ? "Password protected" : "Open. Set SONAR_PASSWORD before sharing."}</dd>
+            </div>
           </dl>
-          {(status.transcription.provider === "mock" || status.ai.provider === "mock") && (
+          {status.transcription.provider === "mock" && (
             <div className="mt-6 rounded-2xl bg-cloud p-5 text-[0.95rem] leading-relaxed text-ink/75">
               <p>
-                Sonar is running in demo mode. Recording works for real, but transcripts come from a sample bank and insights from
-                the built-in extractor. To go live, add keys to <code className="rounded bg-white px-1.5 py-0.5 text-sm">.env</code> and restart:
+                Sonar is in demo mode: recording works for real, but transcripts come from a sample bank. To transcribe what people
+                actually say, set this in <code className="rounded bg-white px-1.5 py-0.5 text-sm">.env</code> and restart:
               </p>
               <pre className="mt-3 overflow-x-auto rounded-xl bg-ink p-4 text-sm leading-relaxed text-white/85">
-{`TRANSCRIPTION_PROVIDER=openai   # or groq
-TRANSCRIPTION_API_KEY=...
-AI_PROVIDER=anthropic           # or openai, groq
-AI_API_KEY=...`}
+{`TRANSCRIPTION_PROVIDER=local   # open-source Whisper, free, no key`}
               </pre>
             </div>
           )}
           <p className="mt-6 text-sm text-ink/50">
-            Audio is sent for transcription and then discarded. Sonar stores transcripts and insights only, with no names or emails.
+            {status.transcription.provider === "local"
+              ? "Audio is transcribed on this server and discarded straight away. It never goes to a third party."
+              : "Audio is sent for transcription and then discarded."}{" "}
+            Sonar stores transcripts and insights only, with no names or emails.
           </p>
         </section>
       )}
@@ -140,14 +155,14 @@ AI_API_KEY=...`}
   );
 }
 
-function Provider({ label, p }: { label: string; p: Status["ai"] }) {
+function Provider({ label, p, text }: { label: string; p: Status["ai"]; text?: string }) {
   const live = p.provider !== "mock";
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 py-4">
       <dt className="font-medium">{label}</dt>
       <dd className="flex items-center gap-2 text-ink/65">
         <span className={`h-2 w-2 rounded-full ${live ? "bg-lime ring-1 ring-ink/20" : "bg-cyan"}`} aria-hidden />
-        {live ? `${NAMES[p.provider] ?? p.provider}, ${p.model}` : "Demo"}
+        {text ?? `${NAMES[p.provider] ?? p.provider}, ${p.model}`}
         {p.misconfigured && <span className="text-sm text-blue">Key missing, using demo</span>}
       </dd>
     </div>

@@ -39,7 +39,7 @@ async function complete(system: string, user: string): Promise<string> {
   // OpenAI-compatible chat completions (OpenAI, Groq, most hosted open models)
   const res = await fetch(`${c.baseUrl.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
-    headers: { "content-type": "application/json", Authorization: `Bearer ${c.apiKey}` },
+    headers: { "content-type": "application/json", ...(c.apiKey ? { Authorization: `Bearer ${c.apiKey}` } : {}) },
     body: JSON.stringify({
       model: c.model,
       temperature: 0.2,
@@ -49,7 +49,7 @@ async function complete(system: string, user: string): Promise<string> {
         { role: "user", content: user },
       ],
     }),
-    signal: AbortSignal.timeout(45_000),
+    signal: AbortSignal.timeout(c.provider === "ollama" ? 120_000 : 45_000),
   });
   if (!res.ok) throw new Error(`${c.provider} ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };

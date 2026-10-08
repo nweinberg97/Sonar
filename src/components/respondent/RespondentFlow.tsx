@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, formatClock } from "@/lib/client";
 import { SonarMark } from "../SonarMark";
 import { Waveform } from "../Waveform";
+import { toWav16k } from "../toWav";
 import { useRecorder, type RecorderError } from "../useRecorder";
 
 interface PublicSession {
@@ -146,8 +147,14 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
     const t1 = window.setTimeout(() => setStage(1), 450);
     try {
       const form = new FormData();
-      const ext = recording.mimeType.includes("mp4") ? "m4a" : recording.mimeType.includes("ogg") ? "ogg" : "webm";
-      form.append("audio", recording.blob, `answer.${ext}`);
+      // Whisper wants 16 kHz mono WAV; convert on the device so the server needs no ffmpeg.
+      let audio: Blob;
+      try {
+        audio = await toWav16k(recording.blob);
+      } catch {
+        throw new Error("We couldn't read that recording on this device. Try again, or type your answer.");
+      }
+      form.append("audio", audio, "answer.wav");
       form.append("slug", slug);
       form.append("questionId", question.id);
       form.append("durationMs", String(recording.durationMs));

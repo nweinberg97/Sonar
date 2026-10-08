@@ -24,7 +24,7 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     api<Status>("/api/status").then(setStatus).catch(() => {});
   }, []);
-  const demo = status && (status.transcription.provider === "mock" || status.ai.provider === "mock");
+  const demo = status?.transcription.provider === "mock";
 
   return (
     <div className="min-h-screen bg-white md:flex">

@@ -1,0 +1,21 @@
+{
+  "name": "Sonar",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "hostRequirements": { "cpus": 2, "memory": "8gb" },
+
+  // Install once when the Codespace is created, and pre-download the Whisper model.
+  "postCreateCommand": "npm install && npm run whisper:prefetch",
+
+  // Every time you open the Codespace, build and start Sonar in a terminal you can see.
+  "postAttachCommand": { "sonar": "npm run serve" },
+
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "Sonar", "onAutoForward": "openBrowser" }
+  },
+
+  "customizations": {
+    "codespaces": { "openFiles": ["CODESPACES.md"] },
+    "vscode": { "extensions": ["bradlc.vscode-tailwindcss", "Prisma.prisma"] }
+  }
+}

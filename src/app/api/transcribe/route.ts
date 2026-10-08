@@ -1,12 +1,13 @@
 import { getSessionBySlug } from "@/lib/data";
 import { fail, handle, json } from "@/lib/http";
+import { allow, TOO_MANY } from "@/lib/rate-limit";
 import { transcriptionService } from "@/lib/services/transcription";
 import { isId, isSlug } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const MAX_BYTES = 10 * 1024 * 1024; // ~10 minutes of opus; answers are usually < 1 MB
+const MAX_BYTES = 12 * 1024 * 1024; // 16 kHz WAV is ~32 KB/s, so ~6 minutes; answers are usually < 1 MB
 
 const EXT: Record<string, string> = {
   "audio/webm": "webm",
@@ -14,6 +15,8 @@ const EXT: Record<string, string> = {
   "audio/mp4": "m4a",
   "audio/mpeg": "mp3",
   "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/wave": "wav",
   "audio/x-m4a": "m4a",
   "audio/aac": "aac",
 };
@@ -25,6 +28,7 @@ const EXT: Record<string, string> = {
  */
 export async function POST(req: Request) {
   return handle(async () => {
+    if (!allow(req, "transcribe", 30, 10 * 60_000)) return fail(TOO_MANY, 429);
     let form: FormData;
     try {
       form = await req.formData();

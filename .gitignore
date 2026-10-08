@@ -4,6 +4,9 @@ out
 next-env.d.ts
 *.tsbuildinfo
 
+# downloaded Whisper model
+.models
+
 # local database + secrets
 prisma/*.db
 prisma/*.db-journal

@@ -59,8 +59,17 @@ function openAICompatible(name: string, baseUrl: string, apiKey: string, model: 
   };
 }
 
+const localProvider: TranscriptionProviderImpl = {
+  name: "local",
+  async transcribe({ audio }) {
+    const { transcribeLocally } = await import("./whisper-local");
+    return transcribeLocally(audio);
+  },
+};
+
 function resolveProvider(): TranscriptionProviderImpl {
   const c = transcriptionConfig();
+  if (c.provider === "local") return localProvider;
   if (c.provider === "openai" || c.provider === "groq") return openAICompatible(c.provider, c.baseUrl, c.apiKey, c.model);
   return mockProvider;
 }

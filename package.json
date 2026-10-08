@@ -6,14 +6,17 @@
   "scripts": {
     "dev": "node scripts/ensure-db.mjs && next dev",
     "build": "prisma generate && next build",
-    "start": "next start",
+    "start": "node scripts/ensure-db.mjs && next start",
+    "serve": "node scripts/ensure-db.mjs && next build && next start",
     "typecheck": "tsc --noEmit",
+    "whisper:prefetch": "tsx scripts/prefetch-whisper.ts",
     "db:push": "prisma db push --skip-generate",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma db push --force-reset --skip-generate && tsx prisma/seed.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@huggingface/transformers": "~3.7.0",
     "@prisma/client": "^6.16.0",
     "next": "^15.5.0",
     "react": "^19.1.0",
@@ -29,5 +32,7 @@
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }
