@@ -27,11 +27,11 @@ const WORKSPACE_ID = "ws_default";
 
 const SUMMARY_SQL = `
   SELECT s.id, s.title, s.description, s.slug, s.status, s.template,
-         s.created_at AS createdAt, s.updated_at AS updatedAt,
-         (SELECT COUNT(*) FROM questions q WHERE q.session_id = s.id) AS questionCount,
-         (SELECT COUNT(DISTINCT r.session_response_id) FROM responses r WHERE r.session_id = s.id) AS respondentCount,
-         (SELECT COUNT(*) FROM responses r WHERE r.session_id = s.id) AS responseCount,
-         (SELECT MAX(r.created_at) FROM responses r WHERE r.session_id = s.id) AS lastResponseAt
+         s.created_at AS "createdAt", s.updated_at AS "updatedAt",
+         (SELECT COUNT(*) FROM questions q WHERE q.session_id = s.id) AS "questionCount",
+         (SELECT COUNT(DISTINCT r.session_response_id) FROM responses r WHERE r.session_id = s.id) AS "respondentCount",
+         (SELECT COUNT(*) FROM responses r WHERE r.session_id = s.id) AS "responseCount",
+         (SELECT MAX(r.created_at) FROM responses r WHERE r.session_id = s.id) AS "lastResponseAt"
   FROM feedback_sessions s`;
 
 export async function listSessions(): Promise<SessionSummary[]> {
@@ -177,7 +177,7 @@ export async function startRespondent(sessionId: string, at = nowIso()): Promise
 
 export async function getRespondent(id: string) {
   const [row] = await db.all<{ id: string; sessionId: string; completedAt: string | null }>(
-    `SELECT id, session_id AS sessionId, completed_at AS completedAt FROM respondents WHERE id = ?`,
+    `SELECT id, session_id AS "sessionId", completed_at AS "completedAt" FROM respondents WHERE id = ?`,
     id,
   );
   return row ?? null;
@@ -256,12 +256,12 @@ export async function listResponses(opts: { sessionId?: string; limit?: number }
   const where = opts.sessionId ? `WHERE r.session_id = ?` : "";
   const params = opts.sessionId ? [opts.sessionId] : [];
   const rows = await db.all<RawResponse>(
-    `SELECT r.id, r.session_id AS sessionId, s.title AS sessionTitle, r.question_id AS questionId,
-            q.text AS questionText, q.position AS questionPosition, r.session_response_id AS sessionResponseId,
-            r.transcript, r.input_mode AS inputMode, r.duration_ms AS durationMs, r.created_at AS createdAt,
-            i.sentiment_score AS iScore, i.sentiment_label AS iLabel, i.primary_theme AS iTheme,
-            i.business_inefficiency AS iIneff, i.feature_requests AS iRequests, i.key_points AS iPoints,
-            i.executive_summary AS iSummary
+    `SELECT r.id, r.session_id AS "sessionId", s.title AS "sessionTitle", r.question_id AS "questionId",
+            q.text AS "questionText", q.position AS "questionPosition", r.session_response_id AS "sessionResponseId",
+            r.transcript, r.input_mode AS "inputMode", r.duration_ms AS "durationMs", r.created_at AS "createdAt",
+            i.sentiment_score AS "iScore", i.sentiment_label AS "iLabel", i.primary_theme AS "iTheme",
+            i.business_inefficiency AS "iIneff", i.feature_requests AS "iRequests", i.key_points AS "iPoints",
+            i.executive_summary AS "iSummary"
      FROM responses r
      JOIN feedback_sessions s ON s.id = r.session_id
      JOIN questions q ON q.id = r.question_id
@@ -296,7 +296,7 @@ export async function getStats(sessionId?: string): Promise<SessionStats> {
     ...params,
   );
   const done = await db.all<{ startedAt: string; completedAt: string }>(
-    `SELECT started_at AS startedAt, completed_at AS completedAt FROM respondents
+    `SELECT started_at AS "startedAt", completed_at AS "completedAt" FROM respondents
      ${sessionId ? "WHERE session_id = ? AND" : "WHERE"} completed_at IS NOT NULL`,
     ...params,
   );
@@ -326,7 +326,7 @@ export interface Narrative {
 
 export async function getCachedNarrative(sessionId: string): Promise<(Narrative & { responseCount: number; createdAt: string }) | null> {
   const [row] = await db.all<{ data: string; responseCount: number; createdAt: string }>(
-    `SELECT data, response_count AS responseCount, created_at AS createdAt FROM syntheses WHERE session_id = ?`,
+    `SELECT data, response_count AS "responseCount", created_at AS "createdAt" FROM syntheses WHERE session_id = ?`,
     sessionId,
   );
   if (!row) return null;
@@ -359,13 +359,18 @@ export async function clearResponses(sessionId?: string): Promise<void> {
   });
 }
 
-/** Wipe everything and load the demo workspace. */
-export async function resetAndSeed(): Promise<void> {
+/** Delete every Sonar, question and response. Leaves an empty workspace. */
+export async function wipeAll(): Promise<void> {
   await db.transaction(async (d) => {
     for (const t of ["ai_insights", "responses", "respondents", "syntheses", "questions", "feedback_sessions", "workspaces"]) {
       await d.run(`DELETE FROM ${t}`);
     }
   });
+}
+
+/** Wipe everything and load the demo workspace. */
+export async function resetAndSeed(): Promise<void> {
+  await wipeAll();
 
   const now = Date.now();
   const forthId = await createSession({ ...FORTH, status: "published" });

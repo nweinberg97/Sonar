@@ -37,6 +37,8 @@ export function SettingsView() {
     try {
       const r = await api<{ message: string }>("/api/demo", { method: "POST", json: { action, ...extra } });
       setNote(r.message);
+      // The list of Sonars just changed; reload so every picker is current.
+      if (action === "reset" || action === "empty") setTimeout(() => window.location.reload(), 900);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -139,7 +141,16 @@ export function SettingsView() {
                 {busy === "clear" ? "Clearing…" : "Clear responses"}
               </button>
             </Tool>
-            <Tool title="Reset workspace" body="Deletes everything and reloads the Forth Community demo.">
+            <Tool title="Start from blank" body="Deletes every Sonar and response. Use this before a real round of testing.">
+              <button
+                className={btn.ghost}
+                disabled={busy !== null}
+                onClick={() => run("empty", {}, "Delete every Sonar and every response? This can't be undone.")}
+              >
+                {busy === "empty" ? "Deleting…" : "Delete everything"}
+              </button>
+            </Tool>
+            <Tool title="Reset to demo" body="Deletes everything and reloads the Forth Community demo.">
               <button
                 className={btn.ghost}
                 disabled={busy !== null}

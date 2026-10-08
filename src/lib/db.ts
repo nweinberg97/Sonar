@@ -32,13 +32,22 @@ function normalize<T>(rows: unknown): T[] {
   });
 }
 
+// Queries are written with SQLite-style `?` placeholders. If DATABASE_URL points
+// at Postgres (e.g. Supabase), rewrite them to `$1, $2, …` so the same SQL runs there.
+const isPostgres = /^postgres(ql)?:/i.test(process.env.DATABASE_URL ?? "");
+function dialect(sql: string): string {
+  if (!isPostgres) return sql;
+  let n = 0;
+  return sql.replace(/\?/g, () => `$${++n}`);
+}
+
 function wrap(client: RawClient, root: boolean): Driver {
   const d: Driver = {
     async all<T>(sql: string, ...params: Param[]) {
-      return normalize<T>(await client.$queryRawUnsafe(sql, ...params));
+      return normalize<T>(await client.$queryRawUnsafe(dialect(sql), ...params));
     },
     async run(sql: string, ...params: Param[]) {
-      return client.$executeRawUnsafe(sql, ...params);
+      return client.$executeRawUnsafe(dialect(sql), ...params);
     },
     async transaction<T>(fn: (d: Driver) => Promise<T>) {
       if (!root) return fn(d);

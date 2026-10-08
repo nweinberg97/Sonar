@@ -10,6 +10,7 @@ import {
   resetAndSeed,
   saveInsight,
   startRespondent,
+  wipeAll,
 } from "@/lib/data";
 import { fail, handle, json } from "@/lib/http";
 import { demoToolsEnabled } from "@/lib/services/config";
@@ -28,6 +29,10 @@ export async function POST(req: Request) {
       case "reset": {
         await resetAndSeed();
         return json({ ok: true, message: "Workspace reset to the demo data." });
+      }
+      case "empty": {
+        await wipeAll();
+        return json({ ok: true, message: "Everything deleted. You're starting from a blank workspace." });
       }
       case "clear": {
         const sessionId = isId(body.sessionId) ? body.sessionId : undefined;

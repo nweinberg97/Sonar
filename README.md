@@ -70,6 +70,16 @@ Creator
 | `src/lib/seed-data.ts` | The Forth Community demo dataset |
 | `prisma/schema.prisma` | Schema: workspaces, feedback sessions, questions, respondents, responses, AI insights, syntheses |
 
+### Moving off SQLite later (Supabase / Postgres)
+
+Every query lives in `src/lib/data.ts` and goes through the tiny driver in `src/lib/db.ts`, which already rewrites placeholders for Postgres. To switch:
+
+1. In `prisma/schema.prisma`, change `provider = "sqlite"` to `provider = "postgresql"`.
+2. Set `DATABASE_URL` to your Postgres connection string (Supabase: Project settings → Database).
+3. Run `npx prisma db push`, then `npm run db:seed` if you want the demo data.
+
+Nothing else in the app changes: the SQL sticks to syntax both databases share (quoted column aliases, `ON CONFLICT`, plain aggregates).
+
 ### Privacy and security
 
 - **Transcript-first, audio-ephemeral.** With local Whisper, audio exists only in the browser and in the server's memory for one request. It never reaches a third party.
