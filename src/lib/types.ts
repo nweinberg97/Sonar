@@ -1,0 +1,83 @@
+export type SessionStatus = "draft" | "published" | "closed";
+export type SentimentLabel = "positive" | "mixed" | "neutral" | "negative";
+export type InputMode = "voice" | "text";
+
+export interface Question {
+  id: string;
+  position: number;
+  text: string;
+}
+
+export interface SessionSummary {
+  id: string;
+  title: string;
+  description: string;
+  slug: string;
+  status: SessionStatus;
+  template: string;
+  createdAt: string;
+  updatedAt: string;
+  questionCount: number;
+  respondentCount: number;
+  responseCount: number;
+  lastResponseAt: string | null;
+}
+
+export interface SessionDetail extends SessionSummary {
+  questions: Question[];
+}
+
+/** The structured output every response is turned into. */
+export interface Insight {
+  sentiment_score: number;
+  sentiment_label: SentimentLabel;
+  primary_theme: string;
+  business_inefficiency: string | null;
+  feature_requests: string[];
+  key_points: string[];
+  executive_summary: string;
+}
+
+export interface ResponseRow {
+  id: string;
+  sessionId: string;
+  sessionTitle: string;
+  questionId: string;
+  questionText: string;
+  questionPosition: number;
+  sessionResponseId: string;
+  transcript: string;
+  inputMode: InputMode;
+  durationMs: number;
+  createdAt: string;
+  insight: Insight | null;
+}
+
+export interface SessionStats {
+  respondents: number;
+  completed: number;
+  answered: number;
+  avgCompletionMs: number | null;
+  avgSentiment: number | null;
+}
+
+export interface ThemeCount {
+  theme: string;
+  mentions: number;
+  avgSentiment: number;
+  quote: string | null;
+  /** How many of the mentions were requests for change rather than reactions. */
+  requests: number;
+}
+
+/** Cross-response synthesis shown on the Insights view. */
+export interface Synthesis {
+  heard: string;
+  themes: ThemeCount[];
+  actions: string[];
+  requests: { text: string; mentions: number }[];
+  frictions: string[];
+  sentiment: { positive: number; mixed: number; neutral: number; negative: number; average: number | null };
+  responseCount: number;
+  generatedAt: string;
+}

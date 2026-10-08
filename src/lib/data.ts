@@ -1,0 +1,416 @@
+/**
+ * Every read and write Sonar makes. Plain SQL over the driver in db.ts.
+ */
+import { db as defaultDb, type Driver } from "./db";
+import type {
+  Insight,
+  InputMode,
+  Question,
+  ResponseRow,
+  SessionDetail,
+  SessionStats,
+  SessionStatus,
+  SessionSummary,
+} from "./types";
+import { newId, nowIso, shortCode, slugify } from "./validate";
+import { DRAFT_SONAR, FORTH, FORTH_RESPONDENTS, FORTH_SYNTHESIS } from "./seed-data";
+
+let db: Driver = defaultDb;
+/** Swap the driver (used by scripts and tests). */
+export function useDriver(d: Driver) {
+  db = d;
+}
+
+const WORKSPACE_ID = "ws_default";
+
+// ---------------------------------------------------------------- sessions
+
+const SUMMARY_SQL = `
+  SELECT s.id, s.title, s.description, s.slug, s.status, s.template,
+         s.created_at AS createdAt, s.updated_at AS updatedAt,
+         (SELECT COUNT(*) FROM questions q WHERE q.session_id = s.id) AS questionCount,
+         (SELECT COUNT(DISTINCT r.session_response_id) FROM responses r WHERE r.session_id = s.id) AS respondentCount,
+         (SELECT COUNT(*) FROM responses r WHERE r.session_id = s.id) AS responseCount,
+         (SELECT MAX(r.created_at) FROM responses r WHERE r.session_id = s.id) AS lastResponseAt
+  FROM feedback_sessions s`;
+
+export async function listSessions(): Promise<SessionSummary[]> {
+  return db.all<SessionSummary>(`${SUMMARY_SQL} ORDER BY s.updated_at DESC`);
+}
+
+async function questionsFor(sessionId: string): Promise<Question[]> {
+  return db.all<Question>(
+    `SELECT id, position, text FROM questions WHERE session_id = ? ORDER BY position ASC`,
+    sessionId,
+  );
+}
+
+export async function getSession(id: string): Promise<SessionDetail | null> {
+  const [row] = await db.all<SessionSummary>(`${SUMMARY_SQL} WHERE s.id = ?`, id);
+  if (!row) return null;
+  return { ...row, questions: await questionsFor(id) };
+}
+
+export async function getSessionBySlug(slug: string): Promise<SessionDetail | null> {
+  const [row] = await db.all<SessionSummary>(`${SUMMARY_SQL} WHERE s.slug = ?`, slug);
+  if (!row) return null;
+  return { ...row, questions: await questionsFor(row.id) };
+}
+
+async function uniqueSlug(d: Driver, title: string, exceptId?: string): Promise<string> {
+  const base = slugify(title);
+  let candidate = base;
+  for (let i = 0; i < 8; i++) {
+    const [hit] = await d.all<{ id: string }>(`SELECT id FROM feedback_sessions WHERE slug = ?`, candidate);
+    if (!hit || hit.id === exceptId) return candidate;
+    candidate = `${base}-${shortCode(4)}`;
+  }
+  return `${base}-${shortCode(8)}`;
+}
+
+async function ensureWorkspace(d: Driver) {
+  await d.run(
+    `INSERT INTO workspaces (id, name, created_at) VALUES (?, ?, ?) ON CONFLICT(id) DO NOTHING`,
+    WORKSPACE_ID,
+    "My workspace",
+    nowIso(),
+  );
+}
+
+export async function createSession(input: {
+  title: string;
+  description: string;
+  template: string;
+  questions: string[];
+  status?: SessionStatus;
+  slug?: string;
+}): Promise<string> {
+  return db.transaction(async (d) => {
+    await ensureWorkspace(d);
+    const id = newId();
+    const now = nowIso();
+    const slug = input.slug ?? (await uniqueSlug(d, input.title));
+    await d.run(
+      `INSERT INTO feedback_sessions (id, workspace_id, title, description, slug, status, template, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, WORKSPACE_ID, input.title, input.description, slug, input.status ?? "draft", input.template, now, now,
+    );
+    for (const [i, text] of input.questions.entries()) {
+      await d.run(
+        `INSERT INTO questions (id, session_id, position, text, created_at) VALUES (?, ?, ?, ?, ?)`,
+        newId(), id, i + 1, text, now,
+      );
+    }
+    return id;
+  });
+}
+
+export async function updateSession(
+  id: string,
+  patch: {
+    title?: string;
+    description?: string;
+    status?: SessionStatus;
+    questions?: { id?: string; text: string }[];
+  },
+): Promise<void> {
+  await db.transaction(async (d) => {
+    const now = nowIso();
+    if (patch.title !== undefined) {
+      await d.run(`UPDATE feedback_sessions SET title = ? WHERE id = ?`, patch.title, id);
+      // Drafts that were never shared get a link that matches their title.
+      const [cur] = await d.all<{ status: string; respondents: number }>(
+        `SELECT status, (SELECT COUNT(*) FROM respondents r WHERE r.session_id = s.id) AS respondents
+         FROM feedback_sessions s WHERE id = ?`,
+        id,
+      );
+      if (cur && cur.status === "draft" && cur.respondents === 0) {
+        await d.run(`UPDATE feedback_sessions SET slug = ? WHERE id = ?`, await uniqueSlug(d, patch.title, id), id);
+      }
+    }
+    if (patch.description !== undefined) {
+      await d.run(`UPDATE feedback_sessions SET description = ? WHERE id = ?`, patch.description, id);
+    }
+    if (patch.status !== undefined) {
+      await d.run(`UPDATE feedback_sessions SET status = ? WHERE id = ?`, patch.status, id);
+    }
+    if (patch.questions) {
+      const existing = await d.all<{ id: string }>(`SELECT id FROM questions WHERE session_id = ?`, id);
+      const existingIds = new Set(existing.map((q) => q.id));
+      const keep = new Set(patch.questions.map((q) => q.id).filter((x): x is string => !!x && existingIds.has(x)));
+      for (const q of existing) {
+        if (!keep.has(q.id)) await d.run(`DELETE FROM questions WHERE id = ?`, q.id);
+      }
+      for (const [i, q] of patch.questions.entries()) {
+        if (q.id && keep.has(q.id)) {
+          await d.run(`UPDATE questions SET text = ?, position = ? WHERE id = ?`, q.text, i + 1, q.id);
+        } else {
+          await d.run(
+            `INSERT INTO questions (id, session_id, position, text, created_at) VALUES (?, ?, ?, ?, ?)`,
+            newId(), id, i + 1, q.text, now,
+          );
+        }
+      }
+    }
+    await d.run(`UPDATE feedback_sessions SET updated_at = ? WHERE id = ?`, now, id);
+  });
+}
+
+export async function deleteSession(id: string): Promise<void> {
+  await db.transaction(async (d) => {
+    await d.run(`DELETE FROM ai_insights WHERE response_id IN (SELECT id FROM responses WHERE session_id = ?)`, id);
+    await d.run(`DELETE FROM responses WHERE session_id = ?`, id);
+    await d.run(`DELETE FROM respondents WHERE session_id = ?`, id);
+    await d.run(`DELETE FROM questions WHERE session_id = ?`, id);
+    await d.run(`DELETE FROM syntheses WHERE session_id = ?`, id);
+    await d.run(`DELETE FROM feedback_sessions WHERE id = ?`, id);
+  });
+}
+
+// ---------------------------------------------------------------- respondents
+
+export async function startRespondent(sessionId: string, at = nowIso()): Promise<string> {
+  const id = newId();
+  await db.run(`INSERT INTO respondents (id, session_id, started_at) VALUES (?, ?, ?)`, id, sessionId, at);
+  return id;
+}
+
+export async function getRespondent(id: string) {
+  const [row] = await db.all<{ id: string; sessionId: string; completedAt: string | null }>(
+    `SELECT id, session_id AS sessionId, completed_at AS completedAt FROM respondents WHERE id = ?`,
+    id,
+  );
+  return row ?? null;
+}
+
+export async function completeRespondent(id: string, at = nowIso()): Promise<void> {
+  await db.run(`UPDATE respondents SET completed_at = ? WHERE id = ? AND completed_at IS NULL`, at, id);
+}
+
+// ---------------------------------------------------------------- responses
+
+export async function createResponse(input: {
+  sessionId: string;
+  questionId: string;
+  respondentId: string;
+  transcript: string;
+  inputMode: InputMode;
+  durationMs: number;
+  createdAt?: string;
+}): Promise<string> {
+  // One answer per question per respondent: re-answering replaces the old one.
+  return db.transaction(async (d) => {
+    const prior = await d.all<{ id: string }>(
+      `SELECT id FROM responses WHERE session_response_id = ? AND question_id = ?`,
+      input.respondentId,
+      input.questionId,
+    );
+    for (const p of prior) {
+      await d.run(`DELETE FROM ai_insights WHERE response_id = ?`, p.id);
+      await d.run(`DELETE FROM responses WHERE id = ?`, p.id);
+    }
+    const id = newId();
+    await d.run(
+      `INSERT INTO responses (id, session_id, question_id, session_response_id, transcript, input_mode, duration_ms, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, input.sessionId, input.questionId, input.respondentId, input.transcript,
+      input.inputMode, Math.max(0, Math.round(input.durationMs)), input.createdAt ?? nowIso(),
+    );
+    return id;
+  });
+}
+
+export async function saveInsight(responseId: string, insight: Insight, at = nowIso()): Promise<void> {
+  await db.run(`DELETE FROM ai_insights WHERE response_id = ?`, responseId);
+  await db.run(
+    `INSERT INTO ai_insights (id, response_id, sentiment_score, sentiment_label, primary_theme, business_inefficiency,
+                              feature_requests, key_points, executive_summary, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    newId(), responseId, insight.sentiment_score, insight.sentiment_label, insight.primary_theme,
+    insight.business_inefficiency, JSON.stringify(insight.feature_requests), JSON.stringify(insight.key_points),
+    insight.executive_summary, at,
+  );
+}
+
+function parseList(raw: unknown): string[] {
+  if (typeof raw !== "string") return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+type RawResponse = Omit<ResponseRow, "insight"> & {
+  iScore: number | null;
+  iLabel: Insight["sentiment_label"] | null;
+  iTheme: string | null;
+  iIneff: string | null;
+  iRequests: string | null;
+  iPoints: string | null;
+  iSummary: string | null;
+};
+
+export async function listResponses(opts: { sessionId?: string; limit?: number } = {}): Promise<ResponseRow[]> {
+  const where = opts.sessionId ? `WHERE r.session_id = ?` : "";
+  const params = opts.sessionId ? [opts.sessionId] : [];
+  const rows = await db.all<RawResponse>(
+    `SELECT r.id, r.session_id AS sessionId, s.title AS sessionTitle, r.question_id AS questionId,
+            q.text AS questionText, q.position AS questionPosition, r.session_response_id AS sessionResponseId,
+            r.transcript, r.input_mode AS inputMode, r.duration_ms AS durationMs, r.created_at AS createdAt,
+            i.sentiment_score AS iScore, i.sentiment_label AS iLabel, i.primary_theme AS iTheme,
+            i.business_inefficiency AS iIneff, i.feature_requests AS iRequests, i.key_points AS iPoints,
+            i.executive_summary AS iSummary
+     FROM responses r
+     JOIN feedback_sessions s ON s.id = r.session_id
+     JOIN questions q ON q.id = r.question_id
+     LEFT JOIN ai_insights i ON i.response_id = r.id
+     ${where}
+     ORDER BY r.created_at DESC, q.position ASC
+     LIMIT ${Math.min(Math.max(opts.limit ?? 500, 1), 2000)}`,
+    ...params,
+  );
+  return rows.map(({ iScore, iLabel, iTheme, iIneff, iRequests, iPoints, iSummary, ...r }) => ({
+    ...r,
+    insight:
+      iScore === null || iScore === undefined
+        ? null
+        : {
+            sentiment_score: iScore,
+            sentiment_label: iLabel ?? "neutral",
+            primary_theme: iTheme ?? "",
+            business_inefficiency: iIneff ?? null,
+            feature_requests: parseList(iRequests),
+            key_points: parseList(iPoints),
+            executive_summary: iSummary ?? "",
+          },
+  }));
+}
+
+export async function getStats(sessionId?: string): Promise<SessionStats> {
+  const where = sessionId ? `WHERE session_id = ?` : "";
+  const params = sessionId ? [sessionId] : [];
+  const [a] = await db.all<{ respondents: number; answered: number }>(
+    `SELECT COUNT(DISTINCT session_response_id) AS respondents, COUNT(*) AS answered FROM responses ${where}`,
+    ...params,
+  );
+  const done = await db.all<{ startedAt: string; completedAt: string }>(
+    `SELECT started_at AS startedAt, completed_at AS completedAt FROM respondents
+     ${sessionId ? "WHERE session_id = ? AND" : "WHERE"} completed_at IS NOT NULL`,
+    ...params,
+  );
+  const durations = done
+    .map((r) => Date.parse(r.completedAt) - Date.parse(r.startedAt))
+    .filter((ms) => Number.isFinite(ms) && ms > 0 && ms < 60 * 60 * 1000);
+  const [s] = await db.all<{ avg: number | null }>(
+    `SELECT AVG(i.sentiment_score) AS avg FROM ai_insights i JOIN responses r ON r.id = i.response_id
+     ${sessionId ? "WHERE r.session_id = ?" : ""}`,
+    ...params,
+  );
+  return {
+    respondents: a?.respondents ?? 0,
+    answered: a?.answered ?? 0,
+    completed: done.length,
+    avgCompletionMs: durations.length ? Math.round(durations.reduce((x, y) => x + y, 0) / durations.length) : null,
+    avgSentiment: s?.avg === null || s?.avg === undefined ? null : Math.round(Number(s.avg) * 10) / 10,
+  };
+}
+
+// ---------------------------------------------------------------- synthesis cache
+
+export interface Narrative {
+  heard: string;
+  actions: string[];
+}
+
+export async function getCachedNarrative(sessionId: string): Promise<(Narrative & { responseCount: number; createdAt: string }) | null> {
+  const [row] = await db.all<{ data: string; responseCount: number; createdAt: string }>(
+    `SELECT data, response_count AS responseCount, created_at AS createdAt FROM syntheses WHERE session_id = ?`,
+    sessionId,
+  );
+  if (!row) return null;
+  try {
+    const data = JSON.parse(row.data) as Narrative;
+    return { heard: String(data.heard ?? ""), actions: (data.actions ?? []).map(String), responseCount: row.responseCount, createdAt: row.createdAt };
+  } catch {
+    return null;
+  }
+}
+
+export async function saveNarrative(sessionId: string, n: Narrative, responseCount: number): Promise<void> {
+  await db.run(`DELETE FROM syntheses WHERE session_id = ?`, sessionId);
+  await db.run(
+    `INSERT INTO syntheses (session_id, response_count, data, created_at) VALUES (?, ?, ?, ?)`,
+    sessionId, responseCount, JSON.stringify(n), nowIso(),
+  );
+}
+
+// ---------------------------------------------------------------- demo tools
+
+export async function clearResponses(sessionId?: string): Promise<void> {
+  await db.transaction(async (d) => {
+    const where = sessionId ? `WHERE session_id = ?` : "";
+    const params = sessionId ? [sessionId] : [];
+    await d.run(`DELETE FROM ai_insights WHERE response_id IN (SELECT id FROM responses ${where})`, ...params);
+    await d.run(`DELETE FROM responses ${where}`, ...params);
+    await d.run(`DELETE FROM respondents ${where}`, ...params);
+    await d.run(`DELETE FROM syntheses ${where}`, ...params);
+  });
+}
+
+/** Wipe everything and load the demo workspace. */
+export async function resetAndSeed(): Promise<void> {
+  await db.transaction(async (d) => {
+    for (const t of ["ai_insights", "responses", "respondents", "syntheses", "questions", "feedback_sessions", "workspaces"]) {
+      await d.run(`DELETE FROM ${t}`);
+    }
+  });
+
+  const now = Date.now();
+  const forthId = await createSession({ ...FORTH, status: "published" });
+  const questions = await questionsFor(forthId);
+
+  for (const r of FORTH_RESPONDENTS) {
+    const startedMs = now - r.minutesAgo * 60_000;
+    const total = r.completionSec ?? 70;
+    const respondentId = await startRespondent(forthId, new Date(startedMs).toISOString());
+    for (const [i, a] of r.answers.entries()) {
+      const at = new Date(startedMs + ((i + 1) / r.answers.length) * total * 1000).toISOString();
+      const [transcript, score, label, theme, ineff, requests, points, summary] = a;
+      const words = transcript.split(/\s+/).length;
+      const responseId = await createResponse({
+        sessionId: forthId,
+        questionId: questions[i].id,
+        respondentId,
+        transcript,
+        inputMode: "voice",
+        durationMs: Math.round((words / 2.6) * 1000),
+        createdAt: at,
+      });
+      await saveInsight(
+        responseId,
+        {
+          sentiment_score: score,
+          sentiment_label: label,
+          primary_theme: theme,
+          business_inefficiency: ineff,
+          feature_requests: requests,
+          key_points: points,
+          executive_summary: summary,
+        },
+        at,
+      );
+    }
+    if (r.completionSec) {
+      await completeRespondent(respondentId, new Date(startedMs + r.completionSec * 1000).toISOString());
+    }
+  }
+
+  const count = FORTH_RESPONDENTS.reduce((n, r) => n + r.answers.length, 0);
+  await saveNarrative(forthId, { heard: FORTH_SYNTHESIS.heard, actions: FORTH_SYNTHESIS.actions }, count);
+
+  await createSession({ ...DRAFT_SONAR, status: "draft" });
+  // Make the flagship demo the most recently updated so it sits at the top.
+  await db.run(`UPDATE feedback_sessions SET updated_at = ? WHERE id = ?`, new Date(now + 1000).toISOString(), forthId);
+}

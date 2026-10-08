@@ -1,0 +1,71 @@
+/**
+ * Testing tools for running experiments: reset everything, generate sample
+ * respondents, clear responses. Off in production unless SONAR_DEMO_TOOLS=true.
+ */
+import {
+  clearResponses,
+  completeRespondent,
+  createResponse,
+  getSession,
+  resetAndSeed,
+  saveInsight,
+  startRespondent,
+} from "@/lib/data";
+import { fail, handle, json } from "@/lib/http";
+import { demoToolsEnabled } from "@/lib/services/config";
+import { insightService } from "@/lib/services/insights";
+import { mockTranscribe } from "@/lib/services/mock";
+import { isId, readJson, requireId } from "@/lib/validate";
+
+export const dynamic = "force-dynamic";
+
+export async function POST(req: Request) {
+  return handle(async () => {
+    if (!demoToolsEnabled()) return fail("Testing tools are turned off on this server.", 403);
+    const body = await readJson(req);
+
+    switch (body.action) {
+      case "reset": {
+        await resetAndSeed();
+        return json({ ok: true, message: "Workspace reset to the demo data." });
+      }
+      case "clear": {
+        const sessionId = isId(body.sessionId) ? body.sessionId : undefined;
+        await clearResponses(sessionId);
+        return json({ ok: true, message: "Responses cleared." });
+      }
+      case "generate": {
+        const sessionId = requireId(body.sessionId, "Sonar");
+        const session = await getSession(sessionId);
+        if (!session) return fail("We couldn't find that Sonar.", 404);
+        if (session.questions.length === 0) return fail("Add a question first.", 400);
+        const count = Math.max(1, Math.min(20, Number(body.count) || 5));
+        const now = Date.now();
+        for (let n = 0; n < count; n++) {
+          const started = now - Math.round(Math.random() * 6 * 3600_000);
+          const respondentId = await startRespondent(session.id, new Date(started).toISOString());
+          let t = started;
+          for (const q of session.questions) {
+            const durationMs = 6000 + Math.round(Math.random() * 18000);
+            t += durationMs + 8000 + Math.round(Math.random() * 12000);
+            const transcript = mockTranscribe(q.text, durationMs);
+            const responseId = await createResponse({
+              sessionId: session.id,
+              questionId: q.id,
+              respondentId,
+              transcript,
+              inputMode: "voice",
+              durationMs,
+              createdAt: new Date(t).toISOString(),
+            });
+            await saveInsight(responseId, await insightService.analyze(transcript, q.text));
+          }
+          await completeRespondent(respondentId, new Date(t + 4000).toISOString());
+        }
+        return json({ ok: true, message: `Added ${count} sample ${count === 1 ? "respondent" : "respondents"}.` });
+      }
+      default:
+        return fail("Unknown action.", 400);
+    }
+  });
+}
