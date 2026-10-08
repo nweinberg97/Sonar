@@ -220,16 +220,38 @@ export async function createResponse(input: {
   });
 }
 
-export async function saveInsight(responseId: string, insight: Insight, at = nowIso()): Promise<void> {
+/** source: which engine produced it, e.g. "ollama:llama3.2:3b", "builtin", "seed". */
+export async function saveInsight(responseId: string, insight: Insight, at = nowIso(), source = "builtin"): Promise<void> {
   await db.run(`DELETE FROM ai_insights WHERE response_id = ?`, responseId);
   await db.run(
     `INSERT INTO ai_insights (id, response_id, sentiment_score, sentiment_label, primary_theme, business_inefficiency,
-                              feature_requests, key_points, executive_summary, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                              feature_requests, key_points, executive_summary, source, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     newId(), responseId, insight.sentiment_score, insight.sentiment_label, insight.primary_theme,
     insight.business_inefficiency, JSON.stringify(insight.feature_requests), JSON.stringify(insight.key_points),
-    insight.executive_summary, at,
+    insight.executive_summary, source.slice(0, 80), at,
   );
+}
+
+/** Answers saved but not analyzed yet, oldest first. */
+export async function listPendingAnalysis(limit = 10) {
+  return db.all<{ id: string; transcript: string; questionText: string }>(
+    `SELECT r.id, r.transcript, q.text AS "questionText"
+     FROM responses r JOIN questions q ON q.id = r.question_id
+     LEFT JOIN ai_insights i ON i.response_id = r.id
+     WHERE i.id IS NULL
+     ORDER BY r.created_at ASC
+     LIMIT ${Math.min(Math.max(limit, 1), 100)}`,
+  );
+}
+
+export async function countPendingAnalysis(sessionId?: string): Promise<number> {
+  const [row] = await db.all<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM responses r LEFT JOIN ai_insights i ON i.response_id = r.id
+     WHERE i.id IS NULL ${sessionId ? "AND r.session_id = ?" : ""}`,
+    ...(sessionId ? [sessionId] : []),
+  );
+  return row?.n ?? 0;
 }
 
 function parseList(raw: unknown): string[] {
@@ -405,6 +427,7 @@ export async function resetAndSeed(): Promise<void> {
           executive_summary: summary,
         },
         at,
+        "seed",
       );
     }
     if (r.completionSec) {

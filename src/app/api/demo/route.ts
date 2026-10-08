@@ -8,14 +8,13 @@ import {
   createResponse,
   getSession,
   resetAndSeed,
-  saveInsight,
   startRespondent,
   wipeAll,
 } from "@/lib/data";
 import { backupNow } from "@/lib/backup";
 import { fail, handle, json } from "@/lib/http";
 import { demoToolsEnabled } from "@/lib/services/config";
-import { insightService } from "@/lib/services/insights";
+import { kickAnalysis } from "@/lib/services/analysis-queue";
 import { mockTranscribe } from "@/lib/services/mock";
 import { isId, readJson, requireId } from "@/lib/validate";
 
@@ -58,7 +57,7 @@ export async function POST(req: Request) {
             const durationMs = 6000 + Math.round(Math.random() * 18000);
             t += durationMs + 8000 + Math.round(Math.random() * 12000);
             const transcript = mockTranscribe(q.text, durationMs);
-            const responseId = await createResponse({
+            await createResponse({
               sessionId: session.id,
               questionId: q.id,
               respondentId,
@@ -67,11 +66,15 @@ export async function POST(req: Request) {
               durationMs,
               createdAt: new Date(t).toISOString(),
             });
-            await saveInsight(responseId, await insightService.analyze(transcript, q.text));
+            
           }
           await completeRespondent(respondentId, new Date(t + 4000).toISOString());
         }
-        return json({ ok: true, message: `Added ${count} sample ${count === 1 ? "respondent" : "respondents"}.` });
+        kickAnalysis();
+        return json({
+          ok: true,
+          message: `Added ${count} sample ${count === 1 ? "respondent" : "respondents"}. Their answers are being analyzed in the background.`,
+        });
       }
       default:
         return fail("Unknown action.", 400);

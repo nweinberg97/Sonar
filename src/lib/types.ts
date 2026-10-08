@@ -79,5 +79,9 @@ export interface Synthesis {
   frictions: string[];
   sentiment: { positive: number; mixed: number; neutral: number; negative: number; average: number | null };
   responseCount: number;
+  /** Answers saved but not analyzed by the model yet. */
+  pending: number;
+  /** The summary is being rewritten by the model right now. */
+  updating: boolean;
   generatedAt: string;
 }

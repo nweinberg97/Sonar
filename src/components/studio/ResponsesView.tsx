@@ -17,9 +17,22 @@ export function ResponsesView() {
     if (!selected) return;
     setData(null);
     setQuestion("all");
-    api<{ responses: ResponseRow[]; stats: SessionStats }>(`/api/responses?sessionId=${selected.id}`)
-      .then(setData)
-      .catch((e: Error) => setLoadError(e.message));
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = () =>
+      api<{ responses: ResponseRow[]; stats: SessionStats }>(`/api/responses?sessionId=${selected.id}`)
+        .then((d) => {
+          if (!alive) return;
+          setData(d);
+          // Answers still being analyzed: refresh until they're done.
+          if (d.responses.some((r) => !r.insight)) timer = setTimeout(load, 5000);
+        })
+        .catch((e: Error) => alive && setLoadError(e.message));
+    void load();
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
   }, [selected?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // One block per person, newest first, answers in question order.

@@ -45,11 +45,12 @@ export function transcriptionConfig() {
 }
 
 /**
- * Insight extraction. Defaults to Sonar's built-in extractor ("mock").
- * "ollama" runs an open-source model on your own machine, no key needed.
+ * Insight extraction. Defaults to "ollama": an open-source model running on
+ * the same machine as Sonar, free and keyless. "mock" = the built-in
+ * rule-based extractor (also the automatic fallback if the model is down).
  */
 export function aiConfig() {
-  const requested = (env("AI_PROVIDER") || "mock").toLowerCase();
+  const requested = (env("AI_PROVIDER") || "ollama").toLowerCase();
   const apiKey = env("AI_API_KEY");
   const provider: AIProvider =
     requested === "ollama"
@@ -58,7 +59,7 @@ export function aiConfig() {
         ? requested
         : "mock";
   const defaults = {
-    ollama: { baseUrl: "http://localhost:11434/v1", model: "llama3.2" },
+    ollama: { baseUrl: "http://127.0.0.1:11434", model: "llama3.2:3b" },
     anthropic: { baseUrl: "https://api.anthropic.com/v1", model: "claude-sonnet-5-5" },
     openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-4.1-mini" },
     groq: { baseUrl: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile" },
@@ -75,6 +76,22 @@ export function aiConfig() {
 
 export function demoToolsEnabled(): boolean {
   return process.env.NODE_ENV !== "production" || env("SONAR_DEMO_TOOLS") === "true";
+}
+
+/** Is Ollama running, and has the model been downloaded? */
+export async function ollamaHealth(): Promise<{ reachable: boolean; hasModel: boolean }> {
+  const c = aiConfig();
+  if (c.provider !== "ollama") return { reachable: false, hasModel: false };
+  try {
+    const res = await fetch(`${c.baseUrl.replace(/\/v1\/?$/, "").replace(/\/$/, "")}/api/tags`, { signal: AbortSignal.timeout(1500) });
+    if (!res.ok) return { reachable: true, hasModel: false };
+    const data = (await res.json()) as { models?: { name?: string; model?: string }[] };
+    const want = c.model.includes(":") ? c.model : `${c.model}:latest`;
+    const hasModel = (data.models ?? []).some((m) => m.name === want || m.model === want || m.name === c.model);
+    return { reachable: true, hasModel };
+  } catch {
+    return { reachable: false, hasModel: false };
+  }
 }
 
 /** Safe to send to the browser: no keys. */

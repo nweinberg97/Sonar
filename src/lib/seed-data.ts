@@ -147,10 +147,9 @@ export const FORTH_RESPONDENTS: SeedRespondent[] = [
   },
 ];
 
-export const FORTH_SYNTHESIS: Omit<Synthesis, "responseCount" | "generatedAt"> = {
+export const FORTH_SYNTHESIS: Pick<Synthesis, "heard" | "actions"> = {
   heard:
     "People join Forth for the room: build nights, honest peer feedback and hands-on workshops are what they value most, and several credit them with actually shipping. The friction is almost all logistics. Information is scattered across too many channels, live sessions don't work outside North American evenings, and popular workshops and mentor slots are hard to get into.",
-  themes: [],
   actions: [
     "Publish one pinned weekly page with every event, and point Slack, the newsletter and the calendar to it.",
     "Record every live session and post it on that event's page, then add one Europe-friendly slot each month.",
@@ -158,9 +157,6 @@ export const FORTH_SYNTHESIS: Omit<Synthesis, "responseCount" | "generatedAt"> =
     "Timebox build-night demos to five minutes and add a low-stakes progress demo in week four.",
     "Give each new member warm intros to two people working on similar things.",
   ],
-  requests: [],
-  frictions: [],
-  sentiment: { positive: 0, mixed: 0, neutral: 0, negative: 0, average: null },
 };
 
 export const DRAFT_SONAR = {

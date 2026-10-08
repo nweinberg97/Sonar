@@ -55,16 +55,21 @@ async function fingerprint(): Promise<string> {
 }
 
 /** Write a snapshot. Returns its file name, or null when skipped. */
-export async function backupNow(reason: "manual" | "hourly" | "before-reset" | "before-clear" | "before-delete"): Promise<string | null> {
+export async function backupNow(
+  reason: "manual" | "hourly" | "before-reset" | "before-clear" | "before-delete" | "before-restore",
+): Promise<string | null> {
   if (!isSqlite()) return null;
   const fp = await fingerprint();
   if (reason === "hourly" && fp === lastFingerprint) return null;
 
   mkdirSync(BACKUP_DIR, { recursive: true });
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
-  const name = `sonar-${stamp}-${reason}.db`;
+  let name = `sonar-${stamp}-${reason}.db`;
+  for (let i = 1; existsSync(path.join(BACKUP_DIR, name)); i++) {
+    const s2 = String(Number(stamp.slice(-6)) + i).padStart(6, "0").slice(-6);
+    name = `sonar-${stamp.slice(0, 9)}${s2}-${reason}.db`;
+  }
   const target = path.join(BACKUP_DIR, name);
-  if (existsSync(target)) return name;
   // Path is built entirely by us (no user input), so inlining it is safe.
   await db.run(`VACUUM INTO '${target.replace(/'/g, "''")}'`);
   lastFingerprint = fp;

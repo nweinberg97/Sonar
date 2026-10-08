@@ -1,13 +1,13 @@
-import { createResponse, getRespondent, getSession, saveInsight } from "@/lib/data";
+import { createResponse, getRespondent, getSession } from "@/lib/data";
 import { fail, handle, json } from "@/lib/http";
 import { allow, TOO_MANY } from "@/lib/rate-limit";
-import { insightService } from "@/lib/services/insights";
+import { kickAnalysis } from "@/lib/services/analysis-queue";
 import { LIMITS } from "@/lib/session-input";
 import { cleanText, readJson, requireId } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
-/** Save an accepted answer, then turn it into structured insight. */
+/** Save an accepted answer. The model analyzes it in the background (analysis-queue.ts). */
 export async function POST(req: Request) {
   return handle(async () => {
     if (!allow(req, "answers", 40, 10 * 60_000)) return fail(TOO_MANY, 429);
@@ -34,8 +34,7 @@ export async function POST(req: Request) {
       durationMs,
     });
 
-    const insight = await insightService.analyze(transcript, question.text);
-    await saveInsight(responseId, insight);
+    kickAnalysis();
 
     return json({ ok: true, responseId }, 201);
   });

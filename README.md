@@ -20,7 +20,7 @@ Open http://localhost:3000 and sign in with the password printed in the terminal
 - **Creator workspace:** `/feedback` (password protected)
 - **Respondent link (demo):** `/s/forth-community` (open to anyone)
 
-Requires Node 20+. Phones only allow the microphone over https, so for phone testing use Codespaces (or any https tunnel to your machine).
+Requires Node 22+. Phones only allow the microphone over https, so for phone testing use Codespaces (or any https tunnel to your machine).
 
 ## Speech to text: open source by default
 
@@ -31,9 +31,18 @@ Sonar transcribes with **Whisper**, OpenAI's open-source speech model, running *
 - Speed vs accuracy: `TRANSCRIPTION_MODEL=Xenova/whisper-tiny.en` is faster, `Xenova/whisper-small.en` is more accurate.
 - `TRANSCRIPTION_PROVIDER=mock` gives sample transcripts for offline demos. `openai` or `groq` (with `TRANSCRIPTION_API_KEY`) use hosted Whisper instead.
 
-**Insights** use Sonar's built-in extractor by default, also free and local. Optional upgrades: `AI_PROVIDER=ollama` for an open-source model on your own machine ([Ollama](https://ollama.com), no key), or `anthropic`, `openai`, `groq` with `AI_API_KEY`. If a model call fails, Sonar falls back to the built-in extractor rather than losing the answer.
+## Insights: an open-source model, in the background
+
+Each transcript is analyzed by **Llama 3.2 (3B)**, an open-source model run by [Ollama](https://ollama.com) on the same machine as Sonar. It reads the answer the way a person would, so it catches meaning however people phrase it, and returns sentiment, theme, friction, requests, key points and a one-line summary (prompt in `src/lib/services/prompts.ts`).
+
+- **Nobody waits for it.** Answers are saved instantly; a background queue (`src/lib/services/analysis-queue.ts`) analyzes them one by one. On a 2-core Codespace that's roughly 10–30 seconds an answer. Responses and Insights refresh themselves while it works.
+- **Nothing gets lost.** If Ollama isn't running, the queue uses Sonar's built-in rule-based extractor and tries the model again 5 minutes later. Each insight records which engine wrote it.
+- **In a Codespace it's automatic:** Ollama and the model install when the Codespace is created and start with Sonar. On your own computer, install Ollama and run `ollama pull llama3.2:3b`.
+- Other options: `AI_MODEL=qwen2.5:3b` or `llama3.2:1b` (faster), `AI_PROVIDER=mock` (built-in extractor only), or hosted models (`anthropic`, `openai`, `groq` with `AI_API_KEY`).
 
 ## Running experiments
+
+**Settings → Backups and undo:** automatic database snapshots (hourly when anything changed, and before every reset, delete or restore), **Undo last reset**, **Restore** any snapshot, and **Download** a copy. Restores happen while Sonar runs, and each one saves the current state first, so it can be undone too.
 
 **Settings → Testing tools** (on by default via `SONAR_DEMO_TOOLS=true` in `.env`):
 
@@ -49,7 +58,8 @@ From the terminal: `npm run db:reset` wipes and reseeds the database.
 Browser (MediaRecorder + live analyser)
   └─ POST /api/transcribe  audio held in memory → transcriptionService.transcribe() → transcript
        (audio is never written to disk or the database)
-  └─ POST /api/answers     transcript → insightService.analyze() → SQLite
+  └─ POST /api/answers     transcript saved to SQLite instantly
+       background queue → insightService.analyzeLive() (Ollama) → insight saved
 Creator
   └─ GET  /api/sessions/:id/insights  counts themes, requests and friction across answers,
                                       then insightService.synthesize() writes the summary and actions

@@ -98,6 +98,7 @@ model AIInsight {
   featureRequests      String   @default("[]") @map("feature_requests") // JSON string[]
   keyPoints            String   @default("[]") @map("key_points") // JSON string[]
   executiveSummary     String   @map("executive_summary")
+  source               String   @default("builtin") // which engine wrote it: "ollama:<model>", "builtin", "seed", …
   createdAt            String   @map("created_at")
   response             Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
 

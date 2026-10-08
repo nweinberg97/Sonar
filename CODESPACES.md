@@ -5,7 +5,7 @@ A Codespace is a computer in the cloud that GitHub runs for you. It has a copy o
 ## First time (about 5 minutes)
 
 1. On the repo page on GitHub, click the green **Code** button, open the **Codespaces** tab, and click **Create codespace on main**.
-2. Wait while it sets up. It installs everything and downloads the open-source Whisper speech model (about 80 MB). You'll see progress in the terminal at the bottom.
+2. Wait while it sets up, about 5–10 minutes the first time. It installs everything and downloads two open-source models: Whisper for speech-to-text (about 80 MB) and Llama 3.2 for insights (about 2 GB). You'll see progress in the terminal at the bottom.
 3. When setup finishes, a terminal named **sonar** starts the app. Look for this box and **copy the password**:
 
    ```
@@ -45,7 +45,7 @@ You're limited by **time the Codespace is running**, not by anything you do in i
 
 GitHub **automatically deletes a Codespace after 30 days stopped**, database included. To prevent that, on github.com/codespaces open the `…` menu on your Codespace and choose **Keep codespace**. GitHub also emails you a day before any deletion.
 
-Sonar backs itself up too (**Settings → Backups**):
+Sonar backs itself up too (**Settings → Backups and undo**):
 
 - a full copy of the database every hour while answers are coming in, and before any reset, delete or clear;
 - the newest 30 copies are kept inside the Codespace;
@@ -53,18 +53,14 @@ Sonar backs itself up too (**Settings → Backups**):
 
 The downloaded file is a normal SQLite database. Open it with the free [DB Browser for SQLite](https://sqlitebrowser.org) to look at the raw tables.
 
-**To restore a backup:** in the sonar terminal press `Ctrl+C`, then run (with the file name from Settings):
-
-```bash
-cp prisma/backups/sonar-YYYYMMDD-HHMMSS-....db prisma/dev.db
-npm run serve
-```
+**Undo and restore:** **Undo last reset** puts everything back the way it was before your last reset, delete or restore. **Restore** on any backup rolls back to that moment. Both work while Sonar is running, and each saves the current state first, so you can always undo the undo.
 
 ## Security, in plain terms
 
 - **Your side is password-protected.** The password is in `.env` as `SONAR_PASSWORD`. Change it there and restart if you share your screen by accident.
 - **Respondents are anonymous.** No names, emails or accounts.
 - **Audio never leaves the Codespace.** Whisper runs inside it. Recordings are transcribed in memory and discarded; only the text is saved.
+- **Transcripts never leave it either.** The insight model (Llama 3.2 via Ollama) also runs inside the Codespace, and Ollama only listens to Sonar on the same machine.
 - **Abuse limits.** The public endpoints are rate-limited per visitor.
 - **The model is data, not code.** Whisper is downloaded as ONNX weights from Hugging Face; nothing in it can execute. After the first download you can set `TRANSCRIPTION_OFFLINE=true` in `.env` so the Codespace never fetches it again.
 - **When testing is over,** set port 3000 back to **Private** (or stop the Codespace) and the link stops working.
@@ -72,6 +68,7 @@ npm run serve
 ## If something's off
 
 - **"Sign in" prompt keeps coming back:** the password is the one printed in the sonar terminal, or in `.env`.
+- **Insights say "Analyzing…" for a while:** normal; the model works through answers one at a time. Settings → Voice and AI shows whether the model is ready.
 - **Transcription is slow:** the first answer after a restart loads the model (around 10 seconds). For faster answers, set `TRANSCRIPTION_MODEL=Xenova/whisper-tiny.en` in `.env` and restart (slightly less accurate).
 - **Restart Sonar:** click in the sonar terminal, press `Ctrl+C`, then run `npm run serve`.
 - **Start over with fresh demo data:** in the app, Settings → Testing tools → Reset to demo data.

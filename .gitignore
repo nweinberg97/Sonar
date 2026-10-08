@@ -6,6 +6,7 @@ next-env.d.ts
 
 # downloaded Whisper model
 .models
+.ollama.log
 
 # local database + secrets
 prisma/*.db

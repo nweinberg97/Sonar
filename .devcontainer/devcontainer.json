@@ -3,8 +3,9 @@
   "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
   "hostRequirements": { "cpus": 2, "memory": "8gb" },
 
-  // Install once when the Codespace is created, and pre-download the Whisper model.
-  "postCreateCommand": "npm install && npm run whisper:prefetch",
+  // Install once when the Codespace is created: app packages, the Whisper speech
+  // model, and Ollama with the open-source insight model.
+  "postCreateCommand": "npm install && npm run whisper:prefetch && bash scripts/setup-ollama.sh",
 
   // Every time you open the Codespace, build and start Sonar in a terminal you can see.
   "postAttachCommand": { "sonar": "npm run serve" },

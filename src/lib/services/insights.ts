@@ -1,10 +1,10 @@
 /**
- * insightService.analyze(transcript)  — one answer → structured Insight
- * insightService.synthesize(sessionId) — all answers → "what did we hear / what should we do"
+ * insightService.analyzeLive(transcript) — one answer → structured Insight (throws on failure)
+ * insightService.synthesize(sessionId)   — all answers → "what did we hear / what should we do"
  *
- * Providers are swappable via AI_PROVIDER. If a live call fails or returns
- * something unusable, Sonar falls back to the local extractor rather than
- * losing the response.
+ * Providers are swappable via AI_PROVIDER. The default is Ollama: an
+ * open-source model running on the same machine. Analysis runs in the
+ * background (see analysis-queue.ts), so nobody waits on the model.
  */
 import { aiConfig } from "./config";
 import { INSIGHT_SYSTEM_PROMPT, SYNTHESIS_SYSTEM_PROMPT } from "./prompts";
@@ -16,6 +16,28 @@ import type { Insight, ResponseRow, SentimentLabel, Synthesis, ThemeCount } from
 
 async function complete(system: string, user: string): Promise<string> {
   const c = aiConfig();
+  if (c.provider === "ollama") {
+    // Ollama's native API: format "json" makes the model emit valid JSON.
+    const res = await fetch(`${c.baseUrl.replace(/\/v1\/?$/, "").replace(/\/$/, "")}/api/chat`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: c.model,
+        stream: false,
+        format: "json",
+        keep_alive: "30m",
+        options: { temperature: 0.2, num_ctx: 4096 },
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+      signal: AbortSignal.timeout(180_000),
+    });
+    if (!res.ok) throw new Error(`ollama ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    const data = (await res.json()) as { message?: { content?: string } };
+    return data.message?.content ?? "";
+  }
   if (c.provider === "anthropic") {
     const res = await fetch(`${c.baseUrl.replace(/\/$/, "")}/messages`, {
       method: "POST",
@@ -49,7 +71,7 @@ async function complete(system: string, user: string): Promise<string> {
         { role: "user", content: user },
       ],
     }),
-    signal: AbortSignal.timeout(c.provider === "ollama" ? 120_000 : 45_000),
+    signal: AbortSignal.timeout(45_000),
   });
   if (!res.ok) throw new Error(`${c.provider} ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
@@ -154,20 +176,65 @@ export function aggregate(rows: ResponseRow[]) {
 
 // ---------------------------------------------------------------- service
 
-export const insightService = {
-  async analyze(transcript: string, question = ""): Promise<Insight> {
-    const c = aiConfig();
-    if (c.provider === "mock") return mockAnalyze(transcript, question);
+const refreshing = new Set<string>();
+
+function narrativeInput(rows: ResponseRow[], agg: ReturnType<typeof aggregate>, questions: string[]) {
+  const lines = rows
+    .filter((r) => r.insight)
+    .slice(0, 120)
+    .map((r) => `- [${r.insight!.sentiment_label}, ${r.insight!.primary_theme}] ${r.insight!.executive_summary}`)
+    .join("\n");
+  const themes = agg.themes.slice(0, 8).map((t) => `${t.theme} (${t.mentions})`).join(", ");
+  return `Questions:\n${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}\n\nTop themes: ${themes}\n\nAnswers (${agg.analyzed}):\n${lines}`;
+}
+
+/** Rewrite the summary with the model, in the background. One at a time per Sonar. */
+function refreshNarrative(sessionId: string, questions: string[]) {
+  if (refreshing.has(sessionId)) return;
+  refreshing.add(sessionId);
+  (async () => {
+    const rows = await listResponses({ sessionId });
+    const agg = aggregate(rows);
+    let narrative: Narrative | null = null;
     try {
-      const out = await complete(
-        INSIGHT_SYSTEM_PROMPT,
-        `Question asked:\n${question}\n\nTranscript of the spoken answer:\n"""\n${transcript}\n"""`,
-      );
-      const insight = coerceInsight(extractJson(out));
-      if (!insight.executive_summary) throw new Error("empty summary");
-      return insight;
+      const parsed = extractJson(await complete(SYNTHESIS_SYSTEM_PROMPT, narrativeInput(rows, agg, questions))) as Record<string, unknown>;
+      const heard = typeof parsed.heard === "string" ? parsed.heard.trim() : "";
+      const actions = strList(parsed.actions, 5, 240);
+      if (heard && actions.length) narrative = { heard, actions };
     } catch (err) {
-      console.error("[sonar] insight extraction failed, using local extractor:", err);
+      console.error("[sonar] summary failed, using the built-in one:", err);
+    }
+    await saveNarrative(sessionId, narrative ?? mockNarrative(agg.themes, agg.requests, agg.analyzed), agg.analyzed);
+  })()
+    .catch((err) => console.error("[sonar] summary refresh failed:", err))
+    .finally(() => refreshing.delete(sessionId));
+}
+
+export const insightService = {
+  /** Label stored with each insight so you can tell which engine wrote it. */
+  get engine(): string {
+    const c = aiConfig();
+    return c.provider === "mock" ? "builtin" : `${c.provider}:${c.model}`;
+  },
+
+  /** Analyze with the configured model. Throws if the model is unavailable or returns junk. */
+  async analyzeLive(transcript: string, question = ""): Promise<Insight> {
+    if (aiConfig().provider === "mock") return mockAnalyze(transcript, question);
+    const out = await complete(
+      INSIGHT_SYSTEM_PROMPT,
+      `Question asked:\n${question}\n\nTranscript of the spoken answer:\n"""\n${transcript}\n"""`,
+    );
+    const insight = coerceInsight(extractJson(out));
+    if (!insight.executive_summary) throw new Error("model returned an empty summary");
+    return insight;
+  },
+
+  /** Analyze, falling back to the built-in extractor if the model fails. */
+  async analyze(transcript: string, question = ""): Promise<Insight> {
+    try {
+      return await this.analyzeLive(transcript, question);
+    } catch (err) {
+      console.error("[sonar] insight extraction failed, using built-in extractor:", err);
       return mockAnalyze(transcript, question);
     }
   },
@@ -176,39 +243,26 @@ export const insightService = {
     const rows = await listResponses({ sessionId });
     const agg = aggregate(rows);
     const count = rows.length;
+    const pending = count - agg.analyzed;
+    const live = aiConfig().provider !== "mock";
+    const cached = await getCachedNarrative(sessionId);
 
     let narrative: Narrative | null = null;
-    const cached = await getCachedNarrative(sessionId);
-    const live = aiConfig().provider !== "mock";
-    // Live mode refreshes whenever the answer count changes. The offline summary
-    // is coarser, so it only replaces a cached one once ~20% more answers arrive.
-    if (cached && (live ? cached.responseCount === count : cached.responseCount >= Math.floor(count * 0.8) && count > 0)) {
-      narrative = cached;
-    }
-
-    if (!narrative && count > 0) {
-      if (live) {
-        try {
-          const lines = rows
-            .filter((r) => r.insight)
-            .slice(0, 150)
-            .map((r) => `- [${r.insight!.sentiment_label}, ${r.insight!.primary_theme}] ${r.insight!.executive_summary}`)
-            .join("\n");
-          const themes = agg.themes.slice(0, 8).map((t) => `${t.theme} (${t.mentions})`).join(", ");
-          const out = await complete(
-            SYNTHESIS_SYSTEM_PROMPT,
-            `Questions:\n${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}\n\nTop themes: ${themes}\n\nAnswers (${count}):\n${lines}`,
-          );
-          const parsed = extractJson(out) as Record<string, unknown>;
-          const heard = typeof parsed.heard === "string" ? parsed.heard.trim() : "";
-          const actions = strList(parsed.actions, 5, 240);
-          if (heard && actions.length) narrative = { heard, actions };
-        } catch (err) {
-          console.error("[sonar] synthesis failed, using local summary:", err);
-        }
+    let updating = false;
+    if (agg.analyzed > 0) {
+      // Live: refresh whenever more answers have been analyzed. Built-in: only after ~20% more.
+      const fresh = cached && (live ? cached.responseCount === agg.analyzed : cached.responseCount >= Math.floor(agg.analyzed * 0.8));
+      if (fresh) {
+        narrative = cached;
+      } else if (live) {
+        // Show what we have right away; the model rewrites it in the background.
+        narrative = cached ?? mockNarrative(agg.themes, agg.requests, agg.analyzed);
+        refreshNarrative(sessionId, questions);
+        updating = true;
+      } else {
+        narrative = mockNarrative(agg.themes, agg.requests, agg.analyzed);
+        await saveNarrative(sessionId, narrative, agg.analyzed);
       }
-      if (!narrative) narrative = mockNarrative(agg.themes, agg.requests, agg.analyzed || count);
-      await saveNarrative(sessionId, narrative, count);
     }
 
     return {
@@ -219,6 +273,8 @@ export const insightService = {
       frictions: agg.frictions,
       sentiment: agg.sentiment,
       responseCount: count,
+      pending,
+      updating: updating || refreshing.has(sessionId),
       generatedAt: new Date().toISOString(),
     };
   },

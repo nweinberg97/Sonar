@@ -4,10 +4,10 @@
   "private": true,
   "description": "Speak your feedback instead of typing it. An MVP for voice-first qualitative feedback.",
   "scripts": {
-    "dev": "node scripts/ensure-db.mjs && next dev",
+    "dev": "node scripts/ensure-db.mjs && node scripts/start-ollama.mjs && next dev",
     "build": "prisma generate && next build",
-    "start": "node scripts/ensure-db.mjs && next start",
-    "serve": "node scripts/ensure-db.mjs && next build && next start",
+    "start": "node scripts/ensure-db.mjs && node scripts/start-ollama.mjs && next start",
+    "serve": "node scripts/ensure-db.mjs && node scripts/start-ollama.mjs && next build && next start",
     "typecheck": "tsc --noEmit",
     "whisper:prefetch": "tsx scripts/prefetch-whisper.ts",
     "db:push": "prisma db push --skip-generate",
@@ -33,6 +33,6 @@
     "typescript": "^5.7.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }

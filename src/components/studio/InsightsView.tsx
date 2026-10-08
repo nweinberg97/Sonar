@@ -16,9 +16,22 @@ export function InsightsView() {
     if (!selected) return;
     setData(null);
     setLoadError("");
-    api<{ synthesis: Synthesis; stats: SessionStats }>(`/api/sessions/${selected.id}/insights`)
-      .then(setData)
-      .catch((e: Error) => setLoadError(e.message));
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = () =>
+      api<{ synthesis: Synthesis; stats: SessionStats }>(`/api/sessions/${selected.id}/insights`)
+        .then((d) => {
+          if (!alive) return;
+          setData(d);
+          // While the model is still working, check back every few seconds.
+          if (d.synthesis.pending > 0 || d.synthesis.updating) timer = setTimeout(load, 5000);
+        })
+        .catch((e: Error) => alive && setLoadError(e.message));
+    void load();
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
   }, [selected?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error) return <ErrorNote message={error} />;
@@ -64,6 +77,18 @@ export function InsightsView() {
         >
           Share your Sonar to start hearing from people. Themes and next steps show up here as answers arrive.
         </EmptySignal>
+      )}
+
+      {s && s.responseCount > 0 && (s.pending > 0 || s.updating) && (
+        <p role="status" className="mb-8 flex items-center gap-3 text-sm text-ink/55">
+          <span className="relative grid h-4 w-4 place-items-center" aria-hidden>
+            <span className="absolute inset-0 rounded-full border border-cyan animate-ping-out" />
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan" />
+          </span>
+          {s.pending > 0
+            ? `Analyzing ${plural(s.pending, "new answer")}. This page updates on its own.`
+            : "Rewriting the summary with the latest answers…"}
+        </p>
       )}
 
       {s && s.responseCount > 0 && (
