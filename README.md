@@ -18,7 +18,7 @@ npm run dev
 Open http://localhost:3000 and sign in with the password printed in the terminal (any username). On first run Sonar creates `.env`, generates that password, builds a local SQLite database, loads the demo workspace and starts downloading the speech model in the background. No accounts or API keys needed.
 
 - **Creator workspace:** `/feedback` (password protected)
-- **Respondent link (demo):** `/s/forth-community` (open to anyone)
+- **Respondent link (demo):** `/s/northline-community` (open to anyone)
 
 Requires Node 22+. Phones only allow the microphone over https, so for phone testing use Codespaces (or any https tunnel to your machine).
 
@@ -48,7 +48,7 @@ Each transcript is analyzed by **Llama 3.2 (3B)**, an open-source model run by [
 
 - Generate sample responses for any Sonar
 - Clear a Sonar's responses
-- Reset everything to the Forth Community demo
+- Reset everything to the Northline Community demo
 
 From the terminal: `npm run db:reset` wipes and reseeds the database.
 
@@ -77,7 +77,7 @@ Creator
 | `src/lib/services/prompts.ts` | The extraction and synthesis system prompts. Iterate here between test rounds. |
 | `src/lib/services/mock.ts` | Demo transcripts and the offline extractor |
 | `src/lib/data.ts` | Every database query, as plain SQL |
-| `src/lib/seed-data.ts` | The Forth Community demo dataset |
+| `src/lib/seed-data.ts` | The Northline Community demo dataset |
 | `prisma/schema.prisma` | Schema: workspaces, feedback sessions, questions, respondents, responses, AI insights, syntheses |
 
 ### Moving off SQLite later (Supabase / Postgres)

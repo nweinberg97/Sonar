@@ -193,7 +193,7 @@ export function SettingsView() {
                 {busy === "empty" ? "Deleting…" : "Delete everything"}
               </button>
             </Tool>
-            <Tool title="Reset to demo" body="Deletes everything and reloads the Forth Community demo.">
+            <Tool title="Reset to demo" body="Deletes everything and reloads the Northline Community demo.">
               <button
                 className={btn.ghost}
                 disabled={busy !== null}

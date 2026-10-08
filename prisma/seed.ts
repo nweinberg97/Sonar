@@ -2,7 +2,7 @@ import { resetAndSeed } from "../src/lib/data";
 
 resetAndSeed()
   .then(() => {
-    console.log("Sonar: demo workspace loaded (Forth Community Feedback + a draft retro).");
+    console.log("Sonar: demo workspace loaded (Northline Community Feedback + a draft retro).");
     process.exit(0);
   })
   .catch((err) => {

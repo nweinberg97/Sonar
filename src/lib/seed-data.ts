@@ -1,7 +1,7 @@
 /**
  * Demo data for user testing. Pure data — no database access here.
  *
- * "Forth Community Feedback" is the flagship demo: 12 people answered three
+ * "Northline Community Feedback" is the flagship demo: 12 people answered three
  * open questions by voice. Each answer carries the structured insight the
  * extraction model would return, so the Responses and Insights views look the
  * way they will with live providers.
@@ -25,10 +25,10 @@ export interface SeedRespondent {
   answers: SeedAnswer[];
 }
 
-export const FORTH = {
-  title: "Forth Community Feedback",
-  slug: "forth-community",
-  description: "Tell us how Forth has really been for you.",
+export const DEMO = {
+  title: "Northline Community Feedback",
+  slug: "northline-community",
+  description: "Tell us how Northline has really been for you.",
   template: "event",
   questions: [
     "What did you enjoy most about your experience?",
@@ -37,7 +37,7 @@ export const FORTH = {
   ],
 };
 
-export const FORTH_RESPONDENTS: SeedRespondent[] = [
+export const DEMO_RESPONDENTS: SeedRespondent[] = [
   {
     minutesAgo: 38,
     completionSec: 104,
@@ -147,9 +147,9 @@ export const FORTH_RESPONDENTS: SeedRespondent[] = [
   },
 ];
 
-export const FORTH_SYNTHESIS: Pick<Synthesis, "heard" | "actions"> = {
+export const DEMO_SYNTHESIS: Pick<Synthesis, "heard" | "actions"> = {
   heard:
-    "People join Forth for the room: build nights, honest peer feedback and hands-on workshops are what they value most, and several credit them with actually shipping. The friction is almost all logistics. Information is scattered across too many channels, live sessions don't work outside North American evenings, and popular workshops and mentor slots are hard to get into.",
+    "People join Northline for the room: build nights, honest peer feedback and hands-on workshops are what they value most, and several credit them with actually shipping. The friction is almost all logistics. Information is scattered across too many channels, live sessions don't work outside North American evenings, and popular workshops and mentor slots are hard to get into.",
   actions: [
     "Publish one pinned weekly page with every event, and point Slack, the newsletter and the calendar to it.",
     "Record every live session and post it on that event's page, then add one Europe-friendly slot each month.",

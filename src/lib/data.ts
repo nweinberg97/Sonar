@@ -13,7 +13,7 @@ import type {
   SessionSummary,
 } from "./types";
 import { newId, nowIso, shortCode, slugify } from "./validate";
-import { DRAFT_SONAR, FORTH, FORTH_RESPONDENTS, FORTH_SYNTHESIS } from "./seed-data";
+import { DRAFT_SONAR, DEMO, DEMO_RESPONDENTS, DEMO_SYNTHESIS } from "./seed-data";
 
 let db: Driver = defaultDb;
 /** Swap the driver (used by scripts and tests). */
@@ -395,19 +395,19 @@ export async function resetAndSeed(): Promise<void> {
   await wipeAll();
 
   const now = Date.now();
-  const forthId = await createSession({ ...FORTH, status: "published" });
-  const questions = await questionsFor(forthId);
+  const demoId = await createSession({ ...DEMO, status: "published" });
+  const questions = await questionsFor(demoId);
 
-  for (const r of FORTH_RESPONDENTS) {
+  for (const r of DEMO_RESPONDENTS) {
     const startedMs = now - r.minutesAgo * 60_000;
     const total = r.completionSec ?? 70;
-    const respondentId = await startRespondent(forthId, new Date(startedMs).toISOString());
+    const respondentId = await startRespondent(demoId, new Date(startedMs).toISOString());
     for (const [i, a] of r.answers.entries()) {
       const at = new Date(startedMs + ((i + 1) / r.answers.length) * total * 1000).toISOString();
       const [transcript, score, label, theme, ineff, requests, points, summary] = a;
       const words = transcript.split(/\s+/).length;
       const responseId = await createResponse({
-        sessionId: forthId,
+        sessionId: demoId,
         questionId: questions[i].id,
         respondentId,
         transcript,
@@ -435,10 +435,10 @@ export async function resetAndSeed(): Promise<void> {
     }
   }
 
-  const count = FORTH_RESPONDENTS.reduce((n, r) => n + r.answers.length, 0);
-  await saveNarrative(forthId, { heard: FORTH_SYNTHESIS.heard, actions: FORTH_SYNTHESIS.actions }, count);
+  const count = DEMO_RESPONDENTS.reduce((n, r) => n + r.answers.length, 0);
+  await saveNarrative(demoId, { heard: DEMO_SYNTHESIS.heard, actions: DEMO_SYNTHESIS.actions }, count);
 
   await createSession({ ...DRAFT_SONAR, status: "draft" });
   // Make the flagship demo the most recently updated so it sits at the top.
-  await db.run(`UPDATE feedback_sessions SET updated_at = ? WHERE id = ?`, new Date(now + 1000).toISOString(), forthId);
+  await db.run(`UPDATE feedback_sessions SET updated_at = ? WHERE id = ?`, new Date(now + 1000).toISOString(), demoId);
 }
