@@ -19,6 +19,19 @@ if (!existsSync(envPath)) {
 }
 
 let envText = readFileSync(envPath, "utf8");
+
+// Load .env into this process so every command below (Prisma, the seed script)
+// sees the same settings. Values already set in the environment win.
+function loadEnv(text) {
+  for (const line of text.split("\n")) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
+    if (!m || line.trim().startsWith("#")) continue;
+    let v = m[2];
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+    else v = v.replace(/\s+#.*$/, "");
+    if (process.env[m[1]] === undefined) process.env[m[1]] = v;
+  }
+}
 const match = envText.match(/^SONAR_PASSWORD=(.*)$/m);
 let password = match ? match[1].trim().replace(/^["']|["']$/g, "") : "";
 if (!password) {
@@ -29,15 +42,18 @@ if (!password) {
     : `${envText.trimEnd()}\n\n# Password for the creator side (generated). Respondent links stay open.\nSONAR_PASSWORD=${password}\n`;
   writeFileSync(envPath, envText);
 }
+loadEnv(envText);
+if (!process.env.DATABASE_URL) process.env.DATABASE_URL = "file:./dev.db";
 
 const dbFile = join(root, "prisma", "dev.db");
-if (!existsSync(dbFile)) {
-  console.log("Sonar: creating the local database…");
-  run("npx prisma db push --skip-generate");
+const seededMarker = join(root, "prisma", ".seeded");
+if (!existsSync(dbFile)) console.log("Sonar: creating the local database…");
+// Creates the database on first run, keeps the schema in sync after updates; never drops data.
+run("npx prisma db push --skip-generate");
+// Load the demo workspace once. (Deleting everything later won't bring it back on restart.)
+if (!existsSync(seededMarker)) {
   run("npx tsx prisma/seed.ts");
-} else {
-  // Keep the schema in sync after pulling changes; never drops data.
-  run("npx prisma db push --skip-generate");
+  writeFileSync(seededMarker, new Date().toISOString() + "\n");
 }
 
 console.log(`
