@@ -9,7 +9,7 @@ import { useSelectedSession } from "./useSelectedSession";
 
 export function ResponsesView() {
   const { sessions, error, selected, select } = useSelectedSession("/responses");
-  const [data, setData] = useState<{ responses: ResponseRow[]; stats: SessionStats } | null>(null);
+  const [data, setData] = useState<{ responses: ResponseRow[]; stats: SessionStats; transcribing: number } | null>(null);
   const [loadError, setLoadError] = useState("");
   const [question, setQuestion] = useState<number | "all">("all");
 
@@ -20,12 +20,12 @@ export function ResponsesView() {
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const load = () =>
-      api<{ responses: ResponseRow[]; stats: SessionStats }>(`/api/responses?sessionId=${selected.id}`)
+      api<{ responses: ResponseRow[]; stats: SessionStats; transcribing: number }>(`/api/responses?sessionId=${selected.id}`)
         .then((d) => {
           if (!alive) return;
           setData(d);
-          // Answers still being analyzed: refresh until they're done.
-          if (d.responses.some((r) => !r.insight)) timer = setTimeout(load, 5000);
+          // Recordings still being transcribed or analyzed: refresh until they're done.
+          if (d.transcribing > 0 || d.responses.some((r) => !r.insight)) timer = setTimeout(load, 4000);
         })
         .catch((e: Error) => alive && setLoadError(e.message));
     void load();
@@ -76,7 +76,17 @@ export function ResponsesView() {
       {loadError && <ErrorNote message={loadError} />}
       {!data && !loadError && <Loading />}
 
-      {data && data.responses.length === 0 && (
+      {data && data.transcribing > 0 && (
+        <p role="status" className="mb-6 flex items-center gap-3 text-sm text-ink/55">
+          <span className="relative grid h-4 w-4 place-items-center" aria-hidden>
+            <span className="absolute inset-0 rounded-full border border-cyan animate-ping-out" />
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan" />
+          </span>
+          Transcribing {plural(data.transcribing, "new recording")}. They'll appear here on their own.
+        </p>
+      )}
+
+      {data && data.responses.length === 0 && data.transcribing === 0 && (
         <EmptySignal
           title="Your first signal is out there."
           action={

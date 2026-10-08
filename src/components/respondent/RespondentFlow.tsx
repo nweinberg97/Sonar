@@ -16,9 +16,8 @@ interface PublicSession {
 }
 
 type Phase = "loading" | "unavailable" | "intro" | "asking" | "finishing" | "done";
-type Step = "idle" | "recording" | "processing" | "review" | "typing";
+type Step = "idle" | "recording" | "sent" | "typing";
 
-const STAGES = ["Listening", "Transcribing", "Finding signals"];
 
 const MIC_ERRORS: Record<RecorderError, { title: string; body: string }> = {
   denied: {
@@ -49,10 +48,7 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
   const [unavailable, setUnavailable] = useState("");
   const [index, setIndex] = useState(0);
   const [step, setStep] = useState<Step>("idle");
-  const [stage, setStage] = useState(0);
-  const [transcript, setTranscript] = useState("");
   const [typed, setTyped] = useState("");
-  const [lastDuration, setLastDuration] = useState(0);
   const [processError, setProcessError] = useState("");
   const [saveTrouble, setSaveTrouble] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -104,7 +100,7 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
 
   const question = session?.questions[index];
   const total = session?.questions.length ?? 0;
-  const dark = step === "recording" || step === "processing";
+  const dark = step === "recording" || step === "sent";
 
   const begin = async () => {
     if (!session) return;
@@ -133,42 +129,39 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
     if (ok) setStep("recording");
   };
 
+  /**
+   * Tapping "finish" sends the answer and moves straight on. Converting,
+   * uploading and transcribing all happen in the background; the respondent
+   * never waits for the transcript.
+   */
   const finishRecording = async () => {
     if (!question) return;
-    setStage(0);
-    setStep("processing");
+    const questionId = question.id;
+    setStep("sent");
     const recording = await rec.stop();
     if (!recording) {
       setProcessError("We didn't catch anything. Try recording again.");
       setStep("idle");
       return;
     }
-    setLastDuration(recording.durationMs);
-    const t1 = window.setTimeout(() => setStage(1), 450);
-    try {
-      const form = new FormData();
-      // Whisper wants 16 kHz mono WAV; convert on the device so the server needs no ffmpeg.
-      let audio: Blob;
-      try {
-        audio = await toWav16k(recording.blob);
-      } catch {
-        throw new Error("We couldn't read that recording on this device. Try again, or type your answer.");
-      }
-      form.append("audio", audio, "answer.wav");
-      form.append("slug", slug);
-      form.append("questionId", question.id);
-      form.append("durationMs", String(recording.durationMs));
-      const { transcript } = await api<{ transcript: string }>("/api/transcribe", { method: "POST", body: form });
-      window.clearTimeout(t1);
-      setStage(2);
-      await new Promise((r) => setTimeout(r, 550));
-      setTranscript(transcript);
-      setStep("review");
-    } catch (err) {
-      window.clearTimeout(t1);
-      setProcessError((err as Error).message || "We couldn't process that response. Try recording again.");
-      setStep("idle");
+    const respondentId = respondentRef.current;
+    if (!preview && respondentId) {
+      const upload = async () => {
+        // Whisper wants 16 kHz mono WAV; convert on the device so the server needs no ffmpeg.
+        const audio = await toWav16k(recording.blob);
+        const form = new FormData();
+        form.append("audio", audio, "answer.wav");
+        form.append("respondentId", respondentId);
+        form.append("questionId", questionId);
+        form.append("durationMs", String(recording.durationMs));
+        await api("/api/voice-answers", { method: "POST", body: form });
+        return true;
+      };
+      pendingRef.current.push(upload().catch(() => upload().catch(() => false)));
     }
+    // A short "got it" beat so it's clear the answer went through.
+    await new Promise((r) => setTimeout(r, 700));
+    void advance();
   };
 
   const save = useCallback(
@@ -182,7 +175,6 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
   );
 
   const advance = async () => {
-    setTranscript("");
     setTyped("");
     setProcessError("");
     if (index + 1 < total) {
@@ -198,11 +190,6 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
       await api(`/api/public/${slug}/complete`, { method: "POST", json: { respondentId: respondentRef.current } }).catch(() => {});
     }
     setPhase("done");
-  };
-
-  const acceptResponse = () => {
-    save(transcript, "voice", lastDuration);
-    void advance();
   };
 
   const submitTyped = () => {
@@ -355,7 +342,7 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
         </div>
 
         <div className="sr-only" aria-live="polite">
-          {step === "recording" ? "Recording. Press the button again to finish." : step === "processing" ? STAGES[stage] : step === "review" ? "Your response is ready to review." : ""}
+          {step === "recording" ? "Recording. Press the button again to send your answer." : step === "sent" ? "Answer sent." : ""}
         </div>
 
         {/* Stage */}
@@ -409,7 +396,7 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
               <button
                 ref={primaryRef}
                 onClick={finishRecording}
-                aria-label="Finish recording"
+                aria-label="Send answer"
                 className="relative grid h-28 w-28 place-items-center rounded-full bg-white text-ink transition-transform duration-150 active:scale-95"
               >
                 <span
@@ -419,53 +406,28 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
                 />
                 <span className="h-8 w-8 rounded-lg bg-ink" />
               </button>
-              <p className="mt-4 font-semibold text-white/80">Tap to finish</p>
+              <p className="mt-4 font-semibold text-white/80">Tap to send</p>
               <button onClick={() => { rec.cancel(); setStep("idle"); }} className="mt-5 text-sm text-white/45 hover:text-white/80">
                 Cancel
               </button>
             </div>
           )}
 
-          {step === "processing" && (
+          {step === "sent" && (
             <div className="flex flex-col items-center pb-14">
               <div className="relative grid h-28 w-28 place-items-center">
-                {[0, 0.6, 1.2].map((d) => (
-                  <span
-                    key={d}
-                    className="absolute inset-0 rounded-full border-2 border-cyan"
-                    style={{ animation: `ping-soft 1.8s var(--ease-signal) ${d}s infinite` }}
-                    aria-hidden
-                  />
-                ))}
-                <SonarMark size={44} tone="dark" />
+                <span
+                  className="absolute inset-0 rounded-full border-2 border-lime"
+                  style={{ animation: "ping-soft 0.9s var(--ease-signal) 1 both" }}
+                  aria-hidden
+                />
+                <span className="grid h-28 w-28 place-items-center rounded-full bg-lime text-ink animate-rise">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path d="M5 12.5 10 17.5 19 7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
               </div>
-              <ol className="mt-16 flex items-center gap-3 text-sm">
-                {STAGES.map((s, i) => (
-                  <li key={s} className={`flex items-center gap-3 transition-colors duration-300 ${i === stage ? "text-white" : i < stage ? "text-white/45" : "text-white/20"}`}>
-                    {i > 0 && <span className="h-px w-4 bg-current opacity-50" aria-hidden />}
-                    {s}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-
-          {step === "review" && (
-            <div className="animate-rise">
-              <p className="text-sm font-medium text-ink/55">Your response</p>
-              <blockquote className="mt-3 max-h-[38vh] overflow-y-auto rounded-3xl bg-white p-6 font-display text-xl leading-snug tracking-[-0.01em]">
-                &ldquo;{transcript}&rdquo;
-              </blockquote>
-              <button
-                ref={primaryRef}
-                onClick={acceptResponse}
-                className="mt-6 h-16 w-full rounded-full bg-blue text-lg font-semibold text-white transition hover:bg-blue-press active:scale-[0.98]"
-              >
-                {index + 1 < total ? "Use response" : "Use response and finish"}
-              </button>
-              <button onClick={startRecording} className="mt-3 h-14 w-full rounded-full font-semibold text-ink/70 hover:bg-ink/5">
-                Record again
-              </button>
+              <p className="mt-6 font-semibold text-white/85">{index + 1 < total ? "Got it" : "Got it. That's the last one."}</p>
             </div>
           )}
 

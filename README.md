@@ -56,8 +56,8 @@ From the terminal: `npm run db:reset` wipes and reseeds the database.
 
 ```
 Browser (MediaRecorder + live analyser)
-  └─ POST /api/transcribe  audio held in memory → transcriptionService.transcribe() → transcript
-       (audio is never written to disk or the database)
+  └─ POST /api/voice-answers  accepted instantly; respondent moves straight on
+       background: Whisper → transcript saved (audio kept in memory only until then)
   └─ POST /api/answers     transcript saved to SQLite instantly
        background queue → insightService.analyzeLive() (Ollama) → insight saved
 Creator

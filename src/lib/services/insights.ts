@@ -10,6 +10,7 @@ import { aiConfig } from "./config";
 import { INSIGHT_SYSTEM_PROMPT, SYNTHESIS_SYSTEM_PROMPT } from "./prompts";
 import { mockAnalyze, mockNarrative } from "./mock";
 import { getCachedNarrative, listResponses, saveNarrative, type Narrative } from "../data";
+import { waitingForTranscription } from "./voice-queue";
 import type { Insight, ResponseRow, SentimentLabel, Synthesis, ThemeCount } from "../types";
 
 // ---------------------------------------------------------------- LLM transport
@@ -243,7 +244,8 @@ export const insightService = {
     const rows = await listResponses({ sessionId });
     const agg = aggregate(rows);
     const count = rows.length;
-    const pending = count - agg.analyzed;
+    // Not yet analyzed, plus recordings still being transcribed.
+    const pending = count - agg.analyzed + waitingForTranscription(sessionId);
     const live = aiConfig().provider !== "mock";
     const cached = await getCachedNarrative(sessionId);
 

@@ -11,7 +11,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC = [
   /^\/s\/[^/]+\/?$/,
   /^\/api\/public\/[^/]+(\/(start|complete))?$/,
-  /^\/api\/transcribe$/,
+  /^\/api\/voice-answers$/,
   /^\/api\/answers$/,
   /^\/_next\//,
   /^\/icon\.svg$/,
