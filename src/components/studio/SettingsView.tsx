@@ -15,6 +15,7 @@ interface Status {
     queue?: { lastError: string | null; usingBuiltinUntil: string | null };
   };
   demoTools: boolean;
+  integrations?: { slack: boolean; linear: boolean };
 }
 
 const NAMES: Record<string, string> = { openai: "OpenAI", groq: "Groq", anthropic: "Anthropic", ollama: "Ollama (open source, this machine)" };
@@ -135,6 +136,8 @@ export function SettingsView() {
           </p>
         </section>
       )}
+
+      <Integrations connected={status?.integrations} />
 
       <Backups />
 
@@ -358,6 +361,72 @@ function Backups() {
         </ul>
       )}
       {list && list.length === 0 && <p className="mt-5 text-sm text-ink/45">No backups yet. The first one is made within the hour.</p>}
+    </section>
+  );
+}
+
+function Integrations({ connected }: { connected?: { slack: boolean; linear: boolean } }) {
+  const chip = (on?: boolean) => (
+    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${on ? "bg-lime text-ink" : "bg-ink/[0.06] text-ink/55"}`}>
+      {on ? "Connected" : "Not connected"}
+    </span>
+  );
+  const code = "rounded bg-white px-1.5 py-0.5 text-sm";
+  return (
+    <section id="integrations" className="mb-14" aria-labelledby="integrations-h">
+      <h2 id="integrations-h" className="font-display text-xl font-semibold tracking-tight">
+        Integrations
+      </h2>
+      <p className="mt-2 max-w-2xl text-ink/60">
+        Send a summary to Slack or turn an action into a Linear issue from any Sonar&rsquo;s Insights page. Nothing is ever sent
+        automatically: you see exactly what will go out, can edit it, and press Send.
+      </p>
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl bg-cloud p-5 text-[0.95rem] leading-relaxed text-ink/75">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-semibold text-ink">Slack</p>
+            {chip(connected?.slack)}
+          </div>
+          {!connected?.slack && (
+            <ol className="mt-3 list-decimal space-y-1.5 pl-5">
+              <li>
+                Go to{" "}
+                <a href="https://api.slack.com/apps" target="_blank" rel="noreferrer" className="text-blue underline underline-offset-4">
+                  api.slack.com/apps
+                </a>
+                , choose <b>Create New App → From scratch</b>, and pick your workspace.
+              </li>
+              <li>
+                Open <b>Incoming Webhooks</b>, switch it on, then <b>Add New Webhook</b> and pick the channel.
+              </li>
+              <li>
+                Copy the link and add it to <code className={code}>.env</code>: <code className={code}>SLACK_WEBHOOK_URL=…</code>
+              </li>
+              <li>Restart Sonar.</li>
+            </ol>
+          )}
+        </div>
+        <div className="rounded-2xl bg-cloud p-5 text-[0.95rem] leading-relaxed text-ink/75">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-semibold text-ink">Linear</p>
+            {chip(connected?.linear)}
+          </div>
+          {!connected?.linear && (
+            <ol className="mt-3 list-decimal space-y-1.5 pl-5">
+              <li>
+                In Linear, open <b>Settings → Security &amp; access</b> and create a <b>personal API key</b>.
+              </li>
+              <li>
+                Add it to <code className={code}>.env</code>: <code className={code}>LINEAR_API_KEY=…</code>
+              </li>
+              <li>
+                Several teams? Also add <code className={code}>LINEAR_TEAM=</code> with the team&rsquo;s key (like ENG).
+              </li>
+              <li>Restart Sonar.</li>
+            </ol>
+          )}
+        </div>
+      </div>
     </section>
   );
 }

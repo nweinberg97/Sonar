@@ -2,15 +2,23 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api, plural, shareUrl } from "@/lib/client";
+import { api, plural, shareUrl, timeAgo } from "@/lib/client";
 import type { SessionStats, Synthesis, ThemeCount } from "@/lib/types";
 import { btn, CopyButton, EmptySignal, ErrorNote, PageHeader, SessionPicker, SessionTabs } from "./ui";
+import { ShareComposer, type ShareHistoryItem, type ShareRequest } from "./ShareComposer";
 import { useSelectedSession } from "./useSelectedSession";
 
 export function InsightsView() {
   const { sessions, error, selected, select } = useSelectedSession("/insights");
   const [data, setData] = useState<{ synthesis: Synthesis; stats: SessionStats } | null>(null);
   const [loadError, setLoadError] = useState("");
+  const [share, setShare] = useState<{ integrations: { slack: boolean; linear: boolean }; history: ShareHistoryItem[] } | null>(null);
+  const [composing, setComposing] = useState<ShareRequest | null>(null);
+
+  const loadShare = (id: string) =>
+    api<{ integrations: { slack: boolean; linear: boolean }; history: ShareHistoryItem[] }>(`/api/sessions/${id}/share`)
+      .then(setShare)
+      .catch(() => setShare(null));
 
   useEffect(() => {
     if (!selected) return;
@@ -28,11 +36,33 @@ export function InsightsView() {
         })
         .catch((e: Error) => alive && setLoadError(e.message));
     void load();
+    void loadShare(selected.id);
     return () => {
       alive = false;
       if (timer) clearTimeout(timer);
     };
   }, [selected?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** The Linear issue already made from this item, if any. */
+  const issueFor = (source: "action" | "request" | "friction", text: string) =>
+    share?.history.find((h) => h.kind === "linear" && h.status === "sent" && h.source === `${source}:${text}`.slice(0, 300));
+  const lastSlack = share?.history.find((h) => h.kind === "slack" && h.status === "sent");
+  const linearButton = (source: "action" | "request" | "friction", text: string) => {
+    const done = issueFor(source, text);
+    return done?.externalUrl ? (
+      <a href={done.externalUrl} target="_blank" rel="noreferrer" className="shrink-0 text-sm text-blue hover:underline">
+        Issue ↗
+      </a>
+    ) : (
+      <button
+        onClick={() => setComposing({ kind: "linear", source, text })}
+        className="shrink-0 text-sm text-ink/40 transition hover:text-ink"
+        title="Turn this into a Linear issue"
+      >
+        {done ? "Issue made" : "Linear issue"}
+      </button>
+    );
+  };
 
   if (error) return <ErrorNote message={error} />;
   if (!sessions) return <Listening />;
@@ -61,6 +91,16 @@ export function InsightsView() {
 
       {loadError && <ErrorNote message={loadError} />}
       {!data && !loadError && <Listening />}
+
+      {composing && selected && (
+        <ShareComposer
+          sessionId={selected.id}
+          request={composing}
+          connected={Boolean(share?.integrations[composing.kind])}
+          onClose={() => setComposing(null)}
+          onSent={() => void loadShare(selected.id)}
+        />
+      )}
 
       {s && s.responseCount === 0 && (
         <EmptySignal
@@ -95,9 +135,17 @@ export function InsightsView() {
         <div className="grid gap-x-16 gap-y-14 lg:grid-cols-[minmax(0,1fr)_17rem]">
           <div className="space-y-16">
             <section aria-labelledby="heard" className="animate-rise">
-              <h2 id="heard" className="text-sm font-medium text-ink/50">
-                What did we hear?
-              </h2>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 id="heard" className="text-sm font-medium text-ink/50">
+                  What did we hear?
+                </h2>
+                <span className="flex items-center gap-3">
+                  {lastSlack?.sentAt && <span className="text-sm text-ink/40">Sent to Slack {timeAgo(lastSlack.sentAt).toLowerCase()}</span>}
+                  <button onClick={() => setComposing({ kind: "slack" })} className={btn.ghost}>
+                    Send to Slack
+                  </button>
+                </span>
+              </div>
               <p className="mt-4 max-w-[38rem] font-display text-[1.65rem] leading-[1.28] tracking-[-0.02em] text-balance">{s.heard}</p>
             </section>
 
@@ -120,7 +168,8 @@ export function InsightsView() {
                 {s.actions.map((a, i) => (
                   <li key={i} className="flex gap-4 rounded-2xl bg-cloud px-5 py-4 text-[1.05rem] leading-snug">
                     <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-[3px] bg-lime ring-1 ring-ink/20" aria-hidden />
-                    {a}
+                    <span className="flex-1">{a}</span>
+                    {linearButton("action", a)}
                   </li>
                 ))}
               </ul>
@@ -148,7 +197,10 @@ export function InsightsView() {
                   {s.requests.slice(0, 6).map((r) => (
                     <li key={r.text} className="flex justify-between gap-3">
                       <span>{r.text}</span>
-                      {r.mentions > 1 && <span className="tabular shrink-0 text-ink/40">{r.mentions}</span>}
+                      <span className="flex shrink-0 items-baseline gap-3">
+                        {r.mentions > 1 && <span className="tabular text-ink/40">{r.mentions}</span>}
+                        {linearButton("request", r.text)}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -164,6 +216,7 @@ export function InsightsView() {
                   {s.frictions.slice(0, 5).map((f, i) => (
                     <li key={i} className="border-l-2 border-blue pl-3">
                       {f}
+                      <span className="mt-1 block">{linearButton("friction", f)}</span>
                     </li>
                   ))}
                 </ul>

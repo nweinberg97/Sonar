@@ -182,6 +182,7 @@ export async function deleteSession(id: string): Promise<void> {
     await d.run(`DELETE FROM respondents WHERE session_id = ?`, id);
     await d.run(`DELETE FROM questions WHERE session_id = ?`, id);
     await d.run(`DELETE FROM syntheses WHERE session_id = ?`, id);
+    await d.run(`DELETE FROM share_items WHERE session_id = ?`, id);
     await d.run(`DELETE FROM feedback_sessions WHERE id = ?`, id);
   });
 }
@@ -420,7 +421,7 @@ export async function clearResponses(sessionId?: string): Promise<void> {
 /** Delete every Sonar, question and response. Leaves an empty workspace. */
 export async function wipeAll(): Promise<void> {
   await db.transaction(async (d) => {
-    for (const t of ["ai_insights", "responses", "respondents", "syntheses", "questions", "feedback_sessions", "workspaces"]) {
+    for (const t of ["share_items", "ai_insights", "responses", "respondents", "syntheses", "questions", "feedback_sessions", "workspaces"]) {
       await d.run(`DELETE FROM ${t}`);
     }
   });
@@ -477,4 +478,45 @@ export async function resetAndSeed(): Promise<void> {
   await createSession({ ...DRAFT_SONAR, status: "draft" });
   // Make the flagship demo the most recently updated so it sits at the top.
   await db.run(`UPDATE feedback_sessions SET updated_at = ? WHERE id = ?`, new Date(now + 1000).toISOString(), demoId);
+}
+
+// ---------------------------------------------------------------- shared out (Slack, Linear)
+
+export interface ShareItem {
+  id: string;
+  sessionId: string;
+  kind: "slack" | "linear";
+  source: string;
+  title: string;
+  body: string;
+  status: "sent" | "failed";
+  externalUrl: string | null;
+  error: string | null;
+  createdAt: string;
+  sentAt: string | null;
+}
+
+const SHARE_COLS = `id, session_id AS "sessionId", kind, source, title, body, status, external_url AS "externalUrl",
+  error, created_at AS "createdAt", sent_at AS "sentAt"`;
+
+export async function getShareItem(id: string): Promise<ShareItem | null> {
+  const [row] = await db.all<ShareItem>(`SELECT ${SHARE_COLS} FROM share_items WHERE id = ?`, id);
+  return row ?? null;
+}
+
+export async function listShareItems(sessionId: string): Promise<ShareItem[]> {
+  return db.all<ShareItem>(`SELECT ${SHARE_COLS} FROM share_items WHERE session_id = ? ORDER BY created_at DESC LIMIT 200`, sessionId);
+}
+
+/** Record an attempt. Re-saving the same id (a retry after a failure) replaces it. */
+export async function saveShareItem(item: ShareItem): Promise<void> {
+  await db.transaction(async (d) => {
+    await d.run(`DELETE FROM share_items WHERE id = ?`, item.id);
+    await d.run(
+      `INSERT INTO share_items (id, session_id, kind, source, title, body, status, external_url, error, created_at, sent_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      item.id, item.sessionId, item.kind, item.source, item.title, item.body, item.status,
+      item.externalUrl, item.error, item.createdAt, item.sentAt,
+    );
+  });
 }

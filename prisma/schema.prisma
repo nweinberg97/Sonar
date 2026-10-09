@@ -45,6 +45,7 @@ model FeedbackSession {
   responses   Response[]
   respondents Respondent[]
   synthesis   Synthesis?
+  shareItems  ShareItem[]
 
   @@map("feedback_sessions")
 }
@@ -125,4 +126,26 @@ model Synthesis {
   session       FeedbackSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@map("syntheses")
+}
+
+// Things the creator sent out of Sonar (a Slack summary, a Linear issue).
+// Nothing is sent without the creator reviewing it and pressing Send; this is
+// the record of what went where. `id` is a key from the browser, so pressing
+// Send twice can never post twice.
+model ShareItem {
+  id          String          @id
+  sessionId   String          @map("session_id")
+  kind        String // slack | linear
+  source      String          @default("") // what it was made from, e.g. "request:Self-serve booking link"
+  title       String          @default("")
+  body        String
+  status      String // sent | failed
+  externalUrl String?         @map("external_url")
+  error       String?
+  createdAt   String          @map("created_at")
+  sentAt      String?         @map("sent_at")
+  session     FeedbackSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("share_items")
 }

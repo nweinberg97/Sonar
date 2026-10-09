@@ -10,7 +10,7 @@ import { BACKUP_DIR, backupNow, backupsSupported, isBackupName, listBackups } fr
 import { db } from "./db";
 
 // Parent tables first, so references are valid as rows go in.
-const TABLES = ["workspaces", "feedback_sessions", "questions", "respondents", "responses", "ai_insights", "syntheses"] as const;
+const TABLES = ["workspaces", "feedback_sessions", "questions", "respondents", "responses", "ai_insights", "syntheses", "share_items"] as const;
 
 type Row = Record<string, string | number | null>;
 

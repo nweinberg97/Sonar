@@ -103,5 +103,6 @@ export function publicStatus() {
     auth: Boolean(env("SONAR_PASSWORD")),
     ai: { provider: a.provider, model: a.model, misconfigured: a.requested !== "mock" && a.provider === "mock" },
     demoTools: demoToolsEnabled(),
+    integrations: { slack: /^https?:\/\//.test(env("SLACK_WEBHOOK_URL")), linear: Boolean(env("LINEAR_API_KEY")) },
   };
 }
