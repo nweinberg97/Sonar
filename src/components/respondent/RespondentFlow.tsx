@@ -34,6 +34,7 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
   const [processError, setProcessError] = useState("");
   const [saveTrouble, setSaveTrouble] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [quoteOk, setQuoteOk] = useState<"ask" | "saving" | "yes">("ask");
 
   const respondentRef = useRef<string | null>(null);
   const pendingRef = useRef<Promise<boolean>[]>([]);
@@ -183,6 +184,7 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
 
   const restart = () => {
     respondentRef.current = null;
+    setQuoteOk("ask");
     setSaveTrouble(false);
     setPhase("intro");
   };
@@ -268,6 +270,32 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
             <div className="animate-rise" role="status">
               <h1 className="font-display text-5xl font-semibold tracking-[-0.035em]">That&rsquo;s a wrap.</h1>
               <p className="mt-4 text-lg text-ink/70">Thanks for helping make this better. Your feedback has been heard.</p>
+              <div className="mt-8 rounded-3xl bg-white p-5 shadow-[0_1px_0_rgba(17,19,21,0.06)]">
+                {quoteOk === "yes" ? (
+                  <p className="font-semibold">Thank you. They may quote your words, never with your name.</p>
+                ) : (
+                  <>
+                    <p className="font-semibold">Can they quote you?</p>
+                    <p className="mt-1 text-[0.95rem] leading-relaxed text-ink/65">
+                      If you said something nice, they might share your words, for example on their website. Always anonymous, never with
+                      your name. Skip this and they won&rsquo;t.
+                    </p>
+                    <button
+                      onClick={async () => {
+                        setQuoteOk("saving");
+                        if (!preview && respondentRef.current) {
+                          await api(`/api/public/${slug}/consent`, { method: "POST", json: { respondentId: respondentRef.current, consent: true } }).catch(() => {});
+                        }
+                        setQuoteOk("yes");
+                      }}
+                      disabled={quoteOk === "saving"}
+                      className="mt-4 h-11 rounded-full bg-ink px-5 font-semibold text-white disabled:opacity-60"
+                    >
+                      Yes, you can quote me
+                    </button>
+                  </>
+                )}
+              </div>
               {saveTrouble && (
                 <p className="mt-6 rounded-2xl bg-cloud p-4 text-sm text-ink/70">
                   One of your answers didn&rsquo;t reach us. If you have a moment, you can go through it again.

@@ -50,6 +50,7 @@ export function ShareComposer({
   const [state, setState] = useState<"loading" | "ready" | "sending" | "sent" | "error">("loading");
   const [error, setError] = useState("");
   const [url, setUrl] = useState<string | null>(null);
+  const [destination, setDestination] = useState("");
   const keyRef = useRef(newKey());
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const name = request.kind === "slack" ? "Slack" : "Linear";
@@ -57,11 +58,12 @@ export function ShareComposer({
   useEffect(() => {
     if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
     const link = `${window.location.origin}/insights?s=${sessionId}`;
-    api<{ draft: { title: string; body: string; source: string } }>(`/api/sessions/${sessionId}/share`, {
+    api<{ draft: { title: string; body: string; source: string }; destination?: string }>(`/api/sessions/${sessionId}/share`, {
       method: "POST",
       json: { action: "draft", kind: request.kind, source: request.source, text: request.text, link },
     })
-      .then(({ draft }) => {
+      .then(({ draft, destination }) => {
+        setDestination(destination ?? "");
         setTitle(draft.title);
         setBody(draft.body);
         setSource(draft.source);
@@ -105,7 +107,9 @@ export function ShareComposer({
               {request.kind === "linear" ? "Create a Linear issue" : request.source === "pulse" ? "Send weekly pulse to Slack" : "Send summary to Slack"}
             </h2>
             <p className="mt-1 text-sm text-ink/55">
-              {state === "sent" ? "Sent." : `Nothing is sent until you press Send. Edit anything you like.`}
+              {state === "sent"
+                ? "Sent."
+                : `${destination ? `Goes to ${destination}. ` : ""}Nothing is sent until you press Send. Edit anything you like.`}
             </p>
           </div>
           <button onClick={() => dialogRef.current?.close()} aria-label="Close" className={btn.quiet}>
@@ -149,7 +153,7 @@ export function ShareComposer({
 
         {state === "sent" && (
           <div className="mt-6 rounded-2xl bg-cloud p-5">
-            <p className="font-semibold">{request.kind === "slack" ? "Posted to your Slack channel." : "Issue created in Linear."}</p>
+            <p className="font-semibold">{request.kind === "slack" ? `Posted to ${destination || "Slack"}.` : "Issue created in Linear."}</p>
             {url && (
               <a href={url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-blue underline underline-offset-4">
                 Open it

@@ -12,7 +12,7 @@ import { db } from "./db";
 
 // Parent tables first, so references are valid as rows go in.
 // themes comes before ai_insights only logically (no foreign key); older backups simply have none and are backfilled.
-const TABLES = ["workspaces", "themes", "feedback_sessions", "questions", "respondents", "responses", "ai_insights", "syntheses", "share_items"] as const;
+const TABLES = ["workspaces", "themes", "feedback_sessions", "questions", "respondents", "responses", "ai_insights", "insight_themes", "syntheses", "share_items", "testimonials"] as const;
 
 type Row = Record<string, string | number | null>;
 

@@ -13,6 +13,7 @@
 import { getSession, getShareItem, listResponses, saveShareItem, type ShareItem } from "../data";
 import type { Synthesis } from "../types";
 import { nowIso } from "../validate";
+import { slackChannels } from "./config";
 import { insightService } from "./insights";
 import { computePulse } from "./pulse";
 
@@ -20,13 +21,21 @@ function env(name: string): string {
   return (process.env[name] ?? "").trim();
 }
 
-const slackUrl = () => (/^https?:\/\//.test(env("SLACK_WEBHOOK_URL")) ? env("SLACK_WEBHOOK_URL") : "");
+/** The webhook for a Sonar's channel ("" = the default channel, or the only one set up). */
+function slackUrl(channel = ""): string {
+  const all = slackChannels();
+  const hit = all.find((c) => c.name === channel);
+  if (hit) return hit.url;
+  if (!channel && all.length === 1) return all[0].url;
+  return "";
+}
+export const channelLabel = (channel: string) => (channel ? `#${channel}` : "your default Slack channel");
 const linearKey = () => env("LINEAR_API_KEY");
 const linearApi = () => env("LINEAR_API_URL") || "https://api.linear.app/graphql";
 
 /** Safe for the browser: whether each one is set up, nothing more. */
 export function integrationStatus() {
-  return { slack: Boolean(slackUrl()), linear: Boolean(linearKey()) };
+  return { slack: slackChannels().length > 0, slackChannels: slackChannels().map((c) => c.name), linear: Boolean(linearKey()) };
 }
 
 export class ShareError extends Error {}
@@ -149,9 +158,15 @@ export async function draftLinearIssue(sessionId: string, source: LinearSource, 
 
 const slackEscape = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-async function postSlack(body: string): Promise<string | null> {
-  const url = slackUrl();
-  if (!url) throw new ShareError("Slack isn't set up. Add SLACK_WEBHOOK_URL to .env and restart Sonar.");
+async function postSlack(body: string, channel: string): Promise<string | null> {
+  const url = slackUrl(channel);
+  if (!url) {
+    throw new ShareError(
+      channel
+        ? `This Sonar posts to #${channel}, but that channel isn't set up. Add SLACK_WEBHOOK_URL_${channel.toUpperCase().replace(/-/g, "_")} to .env, or pick another channel in the builder.`
+        : "Slack isn't set up. Add SLACK_WEBHOOK_URL to .env and restart Sonar.",
+    );
+  }
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -222,7 +237,8 @@ async function createLinearIssue(title: string, description: string): Promise<st
 export async function send(input: { key: string; sessionId: string; kind: "slack" | "linear"; source: string; title: string; body: string }): Promise<ShareItem> {
   const existing = await getShareItem(input.key);
   if (existing?.status === "sent") return existing;
-  if (!(await getSession(input.sessionId))) throw new ShareError("We couldn't find that Sonar.");
+  const session = await getSession(input.sessionId);
+  if (!session) throw new ShareError("We couldn't find that Sonar.");
 
   const item: ShareItem = {
     id: input.key,
@@ -238,7 +254,7 @@ export async function send(input: { key: string; sessionId: string; kind: "slack
     sentAt: null,
   };
   try {
-    item.externalUrl = input.kind === "slack" ? await postSlack(input.body) : await createLinearIssue(input.title, input.body);
+    item.externalUrl = input.kind === "slack" ? await postSlack(input.body, session.slackChannel) : await createLinearIssue(input.title, input.body);
     item.sentAt = nowIso();
   } catch (err) {
     item.status = "failed";

@@ -31,6 +31,8 @@ export function Builder() {
   const [goal, setGoal] = useState("");
   const [targetSeconds, setTargetSeconds] = useState(60);
   const [cadence, setCadence] = useState<Cadence>("none");
+  const [slackChannel, setSlackChannel] = useState("");
+  const [channels, setChannels] = useState<string[]>([]);
   const [save, setSave] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState("");
   const [previewKey, setPreviewKey] = useState(0);
@@ -51,6 +53,13 @@ export function Builder() {
     setGoal(s.goal ?? "");
     setTargetSeconds(s.targetSeconds ?? 60);
     setCadence(s.cadence ?? "none");
+    setSlackChannel(s.slackChannel ?? "");
+  }, []);
+
+  useEffect(() => {
+    api<{ integrations?: { slackChannels?: string[] } }>("/api/status")
+      .then((d) => setChannels(d.integrations?.slackChannels ?? []))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -84,6 +93,7 @@ export function Builder() {
           goal,
           targetSeconds,
           cadence,
+          slackChannel,
           // Weeks for a pulse run Monday–Sunday in the creator's own time zone.
           ...(cadence === "weekly" ? { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" } : {}),
           questions: filled.map((q) => ({ id: q.id, text: q.text })),
@@ -105,7 +115,7 @@ export function Builder() {
       setSave("error");
       setSaveError((e as Error).message);
     }
-  }, [id, title, description, questions, format, goal, targetSeconds, cadence]);
+  }, [id, title, description, questions, format, goal, targetSeconds, cadence, slackChannel]);
 
   // Autosave shortly after the last edit.
   useEffect(() => {
@@ -116,7 +126,7 @@ export function Builder() {
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
     };
-  }, [title, description, questions, format, goal, targetSeconds, cadence, persist]);
+  }, [title, description, questions, format, goal, targetSeconds, cadence, slackChannel, persist]);
 
   useEffect(() => {
     if (!focusKey.current) return;
@@ -291,6 +301,25 @@ export function Builder() {
           )}
 
           <CadencePicker value={cadence} onChange={(c) => edit(() => setCadence(c))} />
+
+          {(channels.length > 1 || (slackChannel !== "" && !channels.includes(slackChannel))) && (
+            <label className="mt-10 block">
+              <span className="text-sm font-medium text-ink/55">Slack channel</span>
+              <select
+                value={slackChannel}
+                onChange={(e) => edit(() => setSlackChannel(e.target.value))}
+                className="mt-2 block rounded-xl border border-ink/10 bg-white px-4 py-3 text-lg outline-none focus:border-blue"
+              >
+                {channels.map((c) => (
+                  <option key={c || "default"} value={c}>
+                    {c ? `#${c}` : "Default channel"}
+                  </option>
+                ))}
+                {slackChannel !== "" && !channels.includes(slackChannel) && <option value={slackChannel}>#{slackChannel} (not set up)</option>}
+              </select>
+              <span className="mt-1.5 block text-sm text-ink/45">Where this Sonar&rsquo;s summaries and weekly pulses go.</span>
+            </label>
+          )}
 
           <div className="mt-16 border-t border-ink/8 pt-6">
             <button onClick={remove} className="text-sm text-ink/45 hover:text-ink">

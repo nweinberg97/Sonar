@@ -1,6 +1,7 @@
 import { getSession, listShareItems } from "@/lib/data";
 import { fail, handle, json } from "@/lib/http";
 import {
+  channelLabel,
   draftLinearIssue,
   draftSlackPulse,
   draftSlackSummary,
@@ -23,6 +24,10 @@ export async function GET(_req: Request, ctx: Ctx) {
     if (!(await getSession(id))) return fail("We couldn't find that Sonar.", 404);
     return json({ integrations: integrationStatus(), history: await listShareItems(id) });
   });
+}
+
+async function slackDestination(id: string): Promise<string> {
+  return channelLabel((await getSession(id))?.slackChannel ?? "");
 }
 
 function link(value: unknown): string {
@@ -50,9 +55,9 @@ export async function POST(req: Request, ctx: Ctx) {
         if (kind === "slack" && body.source === "pulse") {
           const week = typeof body.text === "string" && /^\d{4}-W\d{2}$/.test(body.text) ? body.text : null;
           if (!week) return fail("Pick a week.", 400);
-          return json({ draft: await draftSlackPulse(id, week, link(body.link)) });
+          return json({ draft: await draftSlackPulse(id, week, link(body.link)), destination: await slackDestination(id) });
         }
-        if (kind === "slack") return json({ draft: await draftSlackSummary(id, link(body.link)) });
+        if (kind === "slack") return json({ draft: await draftSlackSummary(id, link(body.link)), destination: await slackDestination(id) });
         const source = (["action", "request", "friction"] as const).includes(body.source as LinearSource) ? (body.source as LinearSource) : null;
         if (!source) return fail("Pick what the issue is about.", 400);
         const text = cleanText(body.text, { max: 400, field: "Item" });

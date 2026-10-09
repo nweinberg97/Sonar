@@ -66,3 +66,10 @@ export function parseTimezone(value: unknown): string {
     throw new ValidationError("Time zone isn't valid.");
   }
 }
+
+/** "" (default channel) or a channel name like "team-pulse". */
+export function parseSlackChannel(value: unknown): string {
+  if (value === "" || value === null) return "";
+  if (typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,40}$/.test(value)) return value;
+  throw new ValidationError("Slack channel name isn't valid.");
+}

@@ -104,7 +104,7 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 
 ## Phase 3: Theme library with consistent naming ✅ built
 
-**Built.** `themes` table (workspace-wide), `ai_insights.theme_id` (raw label kept in `primary_theme`). The model gets the active theme names and must reuse one if it fits; new ones arrive as "suggested". Library page: accept, rename (renaming to an existing name merges), merge, and every quote under a theme across Sonars. Existing answers are backfilled at startup and after a restore. Still open: splitting a long conversation into several themes.
+**Built.** `themes` table (workspace-wide), `ai_insights.theme_id` (raw label kept in `primary_theme`). The model gets the active theme names and must reuse one if it fits; new ones arrive as "suggested". Library page: accept, rename (renaming to an existing name merges), merge, and every quote under a theme across Sonars. Existing answers are backfilled at startup and after a restore. Long answers covering several topics also count toward up to two extra themes (`insight_themes`), in Insights, the pulse and the Library.
 
 *Foundation for everything after it.*
 
@@ -146,9 +146,9 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 - Workspace-wide themes (recommended) or per-Sonar themes.
 - Whether to seed a starter list per template.
 
-## Phase 4: Human approval before anything leaves Sonar ◐ partly built
+## Phase 4: Human approval before anything leaves Sonar ✅ built
 
-**Built (with Phase 6).** Every Slack/Linear send is an editable preview the creator must press Send on; one server function does all outbound calls; every attempt is recorded in `share_items`. **Not built yet:** testimonial quotes and the respondent's "OK to quote me" consent.
+**Built.** Every Slack/Linear send is an editable preview the creator must press Send on; one server function does all outbound calls; every attempt is recorded in `share_items`. Testimonials: respondents opt in on the final screen (`respondents.quote_consent`, never assumed); Library → Testimonials shows their praise (not suggestions) to approve with light edits, turn down, or copy (`testimonials` table). Approval without consent is refused on the server.
 
 **Goal.** Nothing is used publicly or sent to another tool without a person approving it.
 
@@ -216,7 +216,7 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 
 ## Phase 6: Integrations (Slack first, then Linear) ✅ built
 
-**Built.** Slack via one incoming webhook (`SLACK_WEBHOOK_URL`); Linear via personal API key (`LINEAR_API_KEY`, optional `LINEAR_TEAM`). Settings → Integrations shows status and setup steps. Tested against stand-in Slack and Linear services, not the real ones.
+**Built.** Slack via one incoming webhook (`SLACK_WEBHOOK_URL`); Linear via personal API key (`LINEAR_API_KEY`, optional `LINEAR_TEAM`). Settings → Integrations shows status and setup steps. A channel per Sonar: extra webhooks named `SLACK_WEBHOOK_URL_<NAME>`, picked in the builder; the destination is shown before sending. Tested against stand-in Slack and Linear services, not the real ones.
 
 **Goal.** Approved items land where teams already work.
 
@@ -245,3 +245,13 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 - **Teams, accounts, roles.** One password is fine for testing.
 - **Postgres migration.** Do it only when you choose always-on hosting in Phase 2. The code is already ready for it.
 - **Languages other than English.** The Whisper model is English-only.
+
+## After launch (live backend, real link, embeds)
+
+Waiting until Sonar is on an always-on server with real users:
+
+- **Embeds and the in-app widget** (Phase 2).
+- **Personal follow-up emails:** respondents opt in to a reply ("want a reply? leave your email") or the host product passes who the customer is; Sonar drafts a reply per person from what they said, reviewed and sent by the creator. Changes the anonymity promise for those who opt in.
+- **CRMs (HubSpot etc.):** save identified respondents' feedback and themes to their contact record. Depends on the opt-in above.
+- **General outgoing webhook / CSV export:** one setting that covers Zapier, Make, Notion and spreadsheets.
+- **Jira:** only if a user asks.

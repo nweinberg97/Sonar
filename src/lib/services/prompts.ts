@@ -13,6 +13,7 @@ Return ONLY a JSON object with exactly these keys and no other text, no markdown
   "sentiment_score": <integer 1-10>,
   "sentiment_label": "positive" | "mixed" | "neutral" | "negative",
   "primary_theme": <string>,
+  "other_themes": <array of 0-2 strings>,
   "business_inefficiency": <string or null>,
   "feature_requests": <array of strings>,
   "key_points": <array of strings>,
@@ -32,6 +33,10 @@ primary_theme
 - The single most important idea in the answer, as a short noun phrase of 1-3 words in Title-ish case (e.g. "Onboarding", "Event scheduling", "Hands-on workshops", "Pricing").
 - Prefer general, reusable theme names over one-off phrasing so themes can be counted across many responses.
 - If a list of existing themes is given, use the exact name of one that fits the answer. Only create a new theme when none of them fit.
+
+other_themes
+- Only when the answer clearly spends real time on other, distinct topics (common in long answers). Each one a theme name like primary_theme, and from the existing list when one fits.
+- Empty array for most answers. Never repeat primary_theme, never list minor mentions.
 
 business_inefficiency
 - One sentence describing a genuine inefficiency, bottleneck, friction point, wasted time or broken process the person experienced.

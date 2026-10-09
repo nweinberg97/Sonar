@@ -15,7 +15,7 @@ interface Status {
     queue?: { lastError: string | null; usingBuiltinUntil: string | null };
   };
   demoTools: boolean;
-  integrations?: { slack: boolean; linear: boolean };
+  integrations?: { slack: boolean; slackChannels?: string[]; linear: boolean };
 }
 
 const NAMES: Record<string, string> = { openai: "OpenAI", groq: "Groq", anthropic: "Anthropic", ollama: "Ollama (open source, this machine)" };
@@ -365,7 +365,7 @@ function Backups() {
   );
 }
 
-function Integrations({ connected }: { connected?: { slack: boolean; linear: boolean } }) {
+function Integrations({ connected }: { connected?: { slack: boolean; slackChannels?: string[]; linear: boolean } }) {
   const chip = (on?: boolean) => (
     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${on ? "bg-lime text-ink" : "bg-ink/[0.06] text-ink/55"}`}>
       {on ? "Connected" : "Not connected"}
@@ -405,6 +405,16 @@ function Integrations({ connected }: { connected?: { slack: boolean; linear: boo
               <li>Restart Sonar.</li>
             </ol>
           )}
+          {connected?.slack && (
+            <p className="mt-3">
+              Channels:{" "}
+              {(connected.slackChannels ?? []).map((c) => (c ? `#${c}` : "default")).join(", ")}. Each Sonar picks one in its builder.
+            </p>
+          )}
+          <p className="mt-3 text-sm text-ink/55">
+            One channel per Sonar? Make a webhook for each channel and name it in <code className={code}>.env</code>, e.g.{" "}
+            <code className={code}>SLACK_WEBHOOK_URL_TEAM_PULSE=…</code> becomes #team-pulse.
+          </p>
         </div>
         <div className="rounded-2xl bg-cloud p-5 text-[0.95rem] leading-relaxed text-ink/75">
           <div className="flex items-center justify-between gap-3">

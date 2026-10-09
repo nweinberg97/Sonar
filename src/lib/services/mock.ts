@@ -124,6 +124,17 @@ function lowerFirst(s: string) {
   return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
 
+/** Other lexicon themes a long answer clearly spends time on (at least two mentions each). */
+export function detectOtherThemes(text: string, primary: string): string[] {
+  const t = text.toLowerCase();
+  if (t.split(/\s+/).length < 60) return [];
+  return THEME_LEXICON.map((def) => ({ theme: def.theme, hits: (t.match(new RegExp(def.words.source, "g")) ?? []).length }))
+    .filter((x) => x.theme !== primary && x.hits >= 2)
+    .sort((a, b) => b.hits - a.hits)
+    .slice(0, 2)
+    .map((x) => x.theme);
+}
+
 export function detectTheme(text: string): string {
   const t = text.toLowerCase();
   let best: { theme: string; hits: number } | null = null;
@@ -190,6 +201,7 @@ export function mockAnalyze(transcript: string, question = ""): Insight {
     sentiment_score: score,
     sentiment_label: label,
     primary_theme: theme,
+    other_themes: detectOtherThemes(text, theme),
     business_inefficiency: inefficiency,
     feature_requests: requests,
     key_points: keyPoints.length >= 2 ? keyPoints : keyPoints.concat(tidy(text, 14)).slice(0, 2),

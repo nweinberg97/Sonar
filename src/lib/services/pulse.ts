@@ -95,12 +95,13 @@ function summarise(rows: ResponseRow[]): Pick<PulseWeek, "respondents" | "answer
   const analysed = rows.filter((r) => r.insight);
   const byTheme = new Map<string, { n: number; sum: number }>();
   for (const r of analysed) {
-    const t = r.insight!.primary_theme;
-    if (!t || t === "Unclear response") continue;
-    const cur = byTheme.get(t) ?? { n: 0, sum: 0 };
-    cur.n += 1;
-    cur.sum += r.insight!.sentiment_score;
-    byTheme.set(t, cur);
+    for (const t of [r.insight!.primary_theme, ...(r.insight!.other_themes ?? [])]) {
+      if (!t || t === "Unclear response") continue;
+      const cur = byTheme.get(t) ?? { n: 0, sum: 0 };
+      cur.n += 1;
+      cur.sum += r.insight!.sentiment_score;
+      byTheme.set(t, cur);
+    }
   }
   return {
     respondents: people.size,

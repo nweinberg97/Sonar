@@ -43,6 +43,9 @@ model FeedbackSession {
   // each week with the one before. Weeks run Monday–Sunday in `timezone`.
   cadence       String     @default("none")
   timezone      String     @default("UTC")
+  // Which Slack channel this Sonar posts to: "" = the default (SLACK_WEBHOOK_URL),
+  // or a name from SLACK_WEBHOOK_URL_<NAME> in .env.
+  slackChannel  String     @default("") @map("slack_channel")
   createdAt   String       @map("created_at")
   updatedAt   String       @map("updated_at")
   workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -75,6 +78,8 @@ model Respondent {
   sessionId   String          @map("session_id")
   startedAt   String          @map("started_at")
   completedAt String?         @map("completed_at")
+  // 1 = they tapped "OK to quote me anonymously" at the end. 0 by default: never assumed.
+  quoteConsent Int            @default(0) @map("quote_consent")
   session     FeedbackSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   responses   Response[]
 
@@ -99,6 +104,7 @@ model Response {
   question          Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
   respondent        Respondent      @relation(fields: [sessionResponseId], references: [id], onDelete: Cascade)
   insight           AIInsight?
+  testimonial       Testimonial?
 
   @@index([sessionId])
   @@index([sessionResponseId])
@@ -120,6 +126,8 @@ model AIInsight {
   themeId              String?  @map("theme_id")
   createdAt            String   @map("created_at")
   response             Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  otherThemes          InsightTheme[]
 
   @@index([themeId])
   @@map("ai_insights")
@@ -175,4 +183,31 @@ model Theme {
 
   @@unique([workspaceId, key])
   @@map("themes")
+}
+
+// Extra themes for an answer that covers more than one topic (usually a long
+// conversation): it counts toward each of them as well as its main theme.
+model InsightTheme {
+  insightId String    @map("insight_id")
+  themeId   String    @map("theme_id")
+  insight   AIInsight @relation(fields: [insightId], references: [id], onDelete: Cascade)
+
+  @@id([insightId, themeId])
+  @@index([themeId])
+  @@map("insight_themes")
+}
+
+// A quote the creator approved (or turned down) for use as a testimonial.
+// Only answers from respondents who gave quote consent can be approved.
+// `text` may be lightly trimmed by the creator; the original stays in the response.
+model Testimonial {
+  id         String   @id
+  responseId String   @unique @map("response_id")
+  text       String
+  status     String // approved | rejected
+  createdAt  String   @map("created_at")
+  updatedAt  String   @map("updated_at")
+  response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@map("testimonials")
 }

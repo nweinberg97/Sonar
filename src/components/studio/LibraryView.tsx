@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, plural, timeAgoInline } from "@/lib/client";
+import { TestimonialsPanel } from "./TestimonialsPanel";
 import { btn, EmptySignal, ErrorNote, Loading, PageHeader } from "./ui";
 
 interface Theme {
@@ -37,6 +38,29 @@ function mood(avg: number | null): { label: string; dot: string } {
  * merge them, and every count (Insights, weekly pulse, Slack, Linear) follows.
  */
 export function LibraryView() {
+  const [tab, setTab] = useState<"themes" | "testimonials">("themes");
+  return (
+    <>
+      <PageHeader title="Library" sub="Every theme and quote across all your Sonars." />
+      <div className="mb-8 flex gap-1 border-b border-ink/8" role="tablist">
+        {(["themes", "testimonials"] as const).map((t) => (
+          <button
+            key={t}
+            role="tab"
+            aria-selected={tab === t}
+            onClick={() => setTab(t)}
+            className={`-mb-px border-b-2 px-3 pb-3 text-[0.95rem] font-medium transition ${tab === t ? "border-ink text-ink" : "border-transparent text-ink/50 hover:text-ink"}`}
+          >
+            {t === "themes" ? "Themes" : "Testimonials"}
+          </button>
+        ))}
+      </div>
+      {tab === "themes" ? <ThemesPanel /> : <TestimonialsPanel />}
+    </>
+  );
+}
+
+function ThemesPanel() {
   const [themes, setThemes] = useState<Theme[] | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState<string | null>(null);
@@ -187,7 +211,6 @@ export function LibraryView() {
 
   return (
     <>
-      <PageHeader title="Library" sub="Every theme across all your Sonars, with one name per idea." />
       {error && <ErrorNote message={error} />}
       {themes && themes.length === 0 && (
         <EmptySignal title="No themes yet.">Themes appear here as answers are analyzed.</EmptySignal>

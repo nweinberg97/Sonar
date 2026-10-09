@@ -27,6 +27,7 @@ export interface SessionSummary {
   targetSeconds: number;
   cadence: Cadence;
   timezone: string;
+  slackChannel: string;
   createdAt: string;
   updatedAt: string;
   questionCount: number;
@@ -44,6 +45,8 @@ export interface Insight {
   sentiment_score: number;
   sentiment_label: SentimentLabel;
   primary_theme: string;
+  /** Up to two more themes when an answer clearly covers several topics. */
+  other_themes?: string[];
   business_inefficiency: string | null;
   feature_requests: string[];
   key_points: string[];

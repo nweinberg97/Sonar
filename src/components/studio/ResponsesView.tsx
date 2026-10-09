@@ -153,6 +153,9 @@ export function ResponsesView() {
                             <SentimentTag label={r.insight.sentiment_label} score={r.insight.sentiment_score} />
                           </div>
                           <p className="font-medium">{r.insight.primary_theme}</p>
+                          {(r.insight.other_themes?.length ?? 0) > 0 && (
+                            <p className="text-ink/55">Also: {r.insight.other_themes!.join(", ")}</p>
+                          )}
                           <p className="text-ink/60">{r.insight.executive_summary}</p>
                           {r.insight.feature_requests.length > 0 && (
                             <p className="text-ink/60">

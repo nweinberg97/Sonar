@@ -94,6 +94,23 @@ export async function ollamaHealth(): Promise<{ reachable: boolean; hasModel: bo
   }
 }
 
+/**
+ * Slack channels, from .env. SLACK_WEBHOOK_URL is the default channel;
+ * SLACK_WEBHOOK_URL_PRODUCT, SLACK_WEBHOOK_URL_TEAM_PULSE… add named ones
+ * ("product", "team-pulse") that each Sonar can pick in the builder.
+ * Names only leave the server, never the links.
+ */
+export function slackChannels(): { name: string; url: string }[] {
+  const out: { name: string; url: string }[] = [];
+  const isUrl = (v: string) => /^https?:\/\//.test(v);
+  if (isUrl(env("SLACK_WEBHOOK_URL"))) out.push({ name: "", url: env("SLACK_WEBHOOK_URL") });
+  for (const [k, v] of Object.entries(process.env)) {
+    const m = k.match(/^SLACK_WEBHOOK_URL_([A-Z0-9_]+)$/);
+    if (m && v && isUrl(v.trim())) out.push({ name: m[1].toLowerCase().replace(/_/g, "-"), url: v.trim() });
+  }
+  return out.sort((a, b) => (a.name === "" ? -1 : b.name === "" ? 1 : a.name.localeCompare(b.name)));
+}
+
 /** Safe to send to the browser: no keys. */
 export function publicStatus() {
   const t = transcriptionConfig();
@@ -103,6 +120,10 @@ export function publicStatus() {
     auth: Boolean(env("SONAR_PASSWORD")),
     ai: { provider: a.provider, model: a.model, misconfigured: a.requested !== "mock" && a.provider === "mock" },
     demoTools: demoToolsEnabled(),
-    integrations: { slack: /^https?:\/\//.test(env("SLACK_WEBHOOK_URL")), linear: Boolean(env("LINEAR_API_KEY")) },
+    integrations: {
+      slack: slackChannels().length > 0,
+      slackChannels: slackChannels().map((c) => c.name),
+      linear: Boolean(env("LINEAR_API_KEY")),
+    },
   };
 }

@@ -122,10 +122,14 @@ export function coerceInsight(raw: unknown): Insight {
         ? "negative"
         : "neutral";
   const ineff = typeof o.business_inefficiency === "string" ? o.business_inefficiency.trim() : "";
+  const primary = (typeof o.primary_theme === "string" && o.primary_theme.trim()) ? o.primary_theme.trim().slice(0, 60) : "General experience";
+  const same = (a: string, b: string) => a.toLowerCase().replace(/[^a-z0-9]/g, "") === b.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const others = strList(o.other_themes, 2, 60).filter((t, i, all) => !same(t, primary) && all.findIndex((x) => same(x, t)) === i);
   return {
     sentiment_score: score,
     sentiment_label: label,
-    primary_theme: (typeof o.primary_theme === "string" && o.primary_theme.trim()) ? o.primary_theme.trim().slice(0, 60) : "General experience",
+    primary_theme: primary,
+    other_themes: others,
     business_inefficiency: ineff && !/^(null|none|n\/a)$/i.test(ineff) ? ineff.slice(0, 300) : null,
     feature_requests: strList(o.feature_requests, 5),
     key_points: strList(o.key_points, 4),
@@ -148,6 +152,12 @@ export function aggregate(rows: ResponseRow[]) {
     const i = r.insight!;
     sentiment[i.sentiment_label] += 1;
     sum += i.sentiment_score;
+    for (const extra of i.other_themes ?? []) {
+      const t = byTheme.get(extra) ?? { mentions: 0, total: 0, requests: 0, quote: null, quoteScore: -1 };
+      t.mentions += 1;
+      t.total += i.sentiment_score;
+      byTheme.set(extra, t);
+    }
     const key = i.primary_theme;
     if (key && key !== "Unclear response") {
       const t = byTheme.get(key) ?? { mentions: 0, total: 0, requests: 0, quote: null, quoteScore: -1 };

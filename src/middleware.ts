@@ -10,7 +10,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC = [
   /^\/s\/[^/]+\/?$/,
-  /^\/api\/public\/[^/]+(\/(start|complete))?$/,
+  /^\/api\/public\/[^/]+(\/(start|complete|consent))?$/,
   /^\/api\/voice-answers$/,
   /^\/api\/answers$/,
   /^\/api\/conversation\/(preview|burst|next|finish)$/,

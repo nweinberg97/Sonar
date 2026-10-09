@@ -30,7 +30,7 @@ const WORKSPACE_ID = "ws_default";
 
 const SUMMARY_SQL = `
   SELECT s.id, s.title, s.description, s.slug, s.status, s.template,
-         s.format, s.goal, s.target_seconds AS "targetSeconds", s.cadence, s.timezone,
+         s.format, s.goal, s.target_seconds AS "targetSeconds", s.cadence, s.timezone, s.slack_channel AS "slackChannel",
          s.created_at AS "createdAt", s.updated_at AS "updatedAt",
          (SELECT COUNT(*) FROM questions q WHERE q.session_id = s.id) AS "questionCount",
          (SELECT COUNT(DISTINCT r.session_response_id) FROM responses r WHERE r.session_id = s.id) AS "respondentCount",
@@ -125,6 +125,7 @@ export async function updateSession(
     targetSeconds?: number;
     cadence?: Cadence;
     timezone?: string;
+    slackChannel?: string;
   },
 ): Promise<void> {
   await db.transaction(async (d) => {
@@ -159,6 +160,9 @@ export async function updateSession(
     if (patch.cadence !== undefined) {
       await d.run(`UPDATE feedback_sessions SET cadence = ? WHERE id = ?`, patch.cadence, id);
     }
+    if (patch.slackChannel !== undefined) {
+      await d.run(`UPDATE feedback_sessions SET slack_channel = ? WHERE id = ?`, patch.slackChannel, id);
+    }
     if (patch.timezone !== undefined) {
       await d.run(`UPDATE feedback_sessions SET timezone = ? WHERE id = ?`, patch.timezone, id);
     }
@@ -186,7 +190,12 @@ export async function updateSession(
 
 export async function deleteSession(id: string): Promise<void> {
   await db.transaction(async (d) => {
+    await d.run(
+      `DELETE FROM insight_themes WHERE insight_id IN (SELECT i.id FROM ai_insights i JOIN responses r ON r.id = i.response_id WHERE r.session_id = ?)`,
+      id,
+    );
     await d.run(`DELETE FROM ai_insights WHERE response_id IN (SELECT id FROM responses WHERE session_id = ?)`, id);
+    await d.run(`DELETE FROM testimonials WHERE response_id IN (SELECT id FROM responses WHERE session_id = ?)`, id);
     await d.run(`DELETE FROM responses WHERE session_id = ?`, id);
     await d.run(`DELETE FROM respondents WHERE session_id = ?`, id);
     await d.run(`DELETE FROM questions WHERE session_id = ?`, id);
@@ -236,7 +245,9 @@ export async function createResponse(input: {
       input.questionId,
     );
     for (const p of prior) {
+      await d.run(`DELETE FROM insight_themes WHERE insight_id IN (SELECT id FROM ai_insights WHERE response_id = ?)`, p.id);
       await d.run(`DELETE FROM ai_insights WHERE response_id = ?`, p.id);
+      await d.run(`DELETE FROM testimonials WHERE response_id = ?`, p.id);
       await d.run(`DELETE FROM responses WHERE id = ?`, p.id);
     }
     const id = newId();
@@ -255,15 +266,26 @@ export async function createResponse(input: {
 export async function saveInsight(responseId: string, insight: Insight, at = nowIso(), source = "builtin"): Promise<void> {
   // Seeded data defines the starting library; anything new the model comes up with is a suggestion.
   const themeId = await resolveTheme(db, insight.primary_theme, source === "seed" ? "active" : "suggested");
+  const status = source === "seed" ? "active" : "suggested";
+  const extra: string[] = [];
+  for (const raw of insight.other_themes ?? []) {
+    const id = await resolveTheme(db, raw, status);
+    if (id && id !== themeId && !extra.includes(id)) extra.push(id);
+  }
+  await db.run(`DELETE FROM insight_themes WHERE insight_id IN (SELECT id FROM ai_insights WHERE response_id = ?)`, responseId);
   await db.run(`DELETE FROM ai_insights WHERE response_id = ?`, responseId);
+  const insightId = newId();
   await db.run(
     `INSERT INTO ai_insights (id, response_id, sentiment_score, sentiment_label, primary_theme, business_inefficiency,
                               feature_requests, key_points, executive_summary, source, theme_id, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    newId(), responseId, insight.sentiment_score, insight.sentiment_label, insight.primary_theme,
+    insightId, responseId, insight.sentiment_score, insight.sentiment_label, insight.primary_theme,
     insight.business_inefficiency, JSON.stringify(insight.feature_requests), JSON.stringify(insight.key_points),
     insight.executive_summary, source.slice(0, 80), themeId, at,
   );
+  for (const id of extra) {
+    await db.run(`INSERT INTO insight_themes (insight_id, theme_id) VALUES (?, ?)`, insightId, id);
+  }
 }
 
 /** Answers saved but not analyzed yet, oldest first. */
@@ -341,6 +363,16 @@ export async function listResponses(opts: { sessionId?: string; limit?: number }
      LIMIT ${Math.min(Math.max(opts.limit ?? 500, 1), 2000)}`,
     ...params,
   );
+  // Extra themes (answers covering several topics), by response.
+  const extras = await db.all<{ responseId: string; name: string }>(
+    `SELECT i.response_id AS "responseId", t.name
+     FROM insight_themes it JOIN ai_insights i ON i.id = it.insight_id JOIN themes t ON t.id = it.theme_id
+     JOIN responses r ON r.id = i.response_id
+     ${opts.sessionId ? "WHERE r.session_id = ?" : ""}`,
+    ...params,
+  );
+  const extraBy = new Map<string, string[]>();
+  for (const e of extras) extraBy.set(e.responseId, [...(extraBy.get(e.responseId) ?? []), e.name]);
   return rows.map(({ iScore, iLabel, iTheme, iIneff, iRequests, iPoints, iSummary, segments, ...r }) => ({
     ...r,
     segments: parseSegments(segments),
@@ -351,6 +383,7 @@ export async function listResponses(opts: { sessionId?: string; limit?: number }
             sentiment_score: iScore,
             sentiment_label: iLabel ?? "neutral",
             primary_theme: iTheme ?? "",
+            other_themes: extraBy.get(r.id) ?? [],
             business_inefficiency: iIneff ?? null,
             feature_requests: parseList(iRequests),
             key_points: parseList(iPoints),
@@ -423,7 +456,12 @@ export async function clearResponses(sessionId?: string): Promise<void> {
   await db.transaction(async (d) => {
     const where = sessionId ? `WHERE session_id = ?` : "";
     const params = sessionId ? [sessionId] : [];
+    await d.run(
+      `DELETE FROM insight_themes WHERE insight_id IN (SELECT id FROM ai_insights WHERE response_id IN (SELECT id FROM responses ${where}))`,
+      ...params,
+    );
     await d.run(`DELETE FROM ai_insights WHERE response_id IN (SELECT id FROM responses ${where})`, ...params);
+    await d.run(`DELETE FROM testimonials WHERE response_id IN (SELECT id FROM responses ${where})`, ...params);
     await d.run(`DELETE FROM responses ${where}`, ...params);
     await d.run(`DELETE FROM respondents ${where}`, ...params);
     await d.run(`DELETE FROM syntheses ${where}`, ...params);
@@ -433,7 +471,7 @@ export async function clearResponses(sessionId?: string): Promise<void> {
 /** Delete every Sonar, question and response. Leaves an empty workspace. */
 export async function wipeAll(): Promise<void> {
   await db.transaction(async (d) => {
-    for (const t of ["share_items", "themes", "ai_insights", "responses", "respondents", "syntheses", "questions", "feedback_sessions", "workspaces"]) {
+    for (const t of ["testimonials", "share_items", "insight_themes", "themes", "ai_insights", "responses", "respondents", "syntheses", "questions", "feedback_sessions", "workspaces"]) {
       await d.run(`DELETE FROM ${t}`);
     }
   });
@@ -447,10 +485,12 @@ export async function resetAndSeed(): Promise<void> {
   const demoId = await createSession({ ...DEMO, status: "published" });
   const questions = await questionsFor(demoId);
 
-  for (const r of DEMO_RESPONDENTS) {
+  for (const [n, r] of DEMO_RESPONDENTS.entries()) {
     const startedMs = now - r.minutesAgo * 60_000;
     const total = r.completionSec ?? 70;
     const respondentId = await startRespondent(demoId, new Date(startedMs).toISOString());
+    // Some demo people said it's OK to quote them, so Testimonials has something to show.
+    if (n % 2 === 0 && r.completionSec) await setQuoteConsent(respondentId, true);
     for (const [i, a] of r.answers.entries()) {
       const at = new Date(startedMs + ((i + 1) / r.answers.length) * total * 1000).toISOString();
       const [transcript, score, label, theme, ineff, requests, points, summary] = a;
@@ -606,6 +646,12 @@ export async function activeThemeNames(limit = 40): Promise<string[]> {
   return rows.map((r) => r.name);
 }
 
+/** Every (theme, answer) pair: each answer's main theme plus any extra ones. */
+const MENTIONS_SQL = `
+  SELECT theme_id, response_id, sentiment_score FROM ai_insights WHERE theme_id IS NOT NULL
+  UNION ALL
+  SELECT it.theme_id, i.response_id, i.sentiment_score FROM insight_themes it JOIN ai_insights i ON i.id = it.insight_id`;
+
 export interface ThemeSummary {
   id: string;
   name: string;
@@ -618,11 +664,11 @@ export interface ThemeSummary {
 
 export async function listThemes(): Promise<ThemeSummary[]> {
   const rows = await db.all<ThemeSummary>(
-    `SELECT t.id, t.name, t.status, COUNT(i.id) AS mentions, COUNT(DISTINCT r.session_id) AS sonars,
-            AVG(i.sentiment_score) AS "avgSentiment", MAX(r.created_at) AS "lastAt"
+    `SELECT t.id, t.name, t.status, COUNT(m.response_id) AS mentions, COUNT(DISTINCT r.session_id) AS sonars,
+            AVG(m.sentiment_score) AS "avgSentiment", MAX(r.created_at) AS "lastAt"
      FROM themes t
-     LEFT JOIN ai_insights i ON i.theme_id = t.id
-     LEFT JOIN responses r ON r.id = i.response_id
+     LEFT JOIN (${MENTIONS_SQL}) m ON m.theme_id = t.id
+     LEFT JOIN responses r ON r.id = m.response_id
      WHERE t.workspace_id = ? AND t.status <> 'merged'
      GROUP BY t.id, t.name, t.status
      ORDER BY mentions DESC, t.name ASC`,
@@ -638,10 +684,10 @@ export async function listThemes(): Promise<ThemeSummary[]> {
 
 export async function themeQuotes(themeId: string, limit = 50) {
   return db.all<{ responseId: string; transcript: string; sentiment: number; sessionId: string; sessionTitle: string; createdAt: string }>(
-    `SELECT r.id AS "responseId", r.transcript, i.sentiment_score AS sentiment, s.id AS "sessionId", s.title AS "sessionTitle",
+    `SELECT r.id AS "responseId", r.transcript, m.sentiment_score AS sentiment, s.id AS "sessionId", s.title AS "sessionTitle",
             r.created_at AS "createdAt"
-     FROM ai_insights i JOIN responses r ON r.id = i.response_id JOIN feedback_sessions s ON s.id = r.session_id
-     WHERE i.theme_id = ? ORDER BY r.created_at DESC LIMIT ${Math.min(Math.max(limit, 1), 500)}`,
+     FROM (${MENTIONS_SQL}) m JOIN responses r ON r.id = m.response_id JOIN feedback_sessions s ON s.id = r.session_id
+     WHERE m.theme_id = ? ORDER BY r.created_at DESC LIMIT ${Math.min(Math.max(limit, 1), 500)}`,
     themeId,
   );
 }
@@ -663,6 +709,14 @@ export async function mergeTheme(fromId: string, intoId: string): Promise<void> 
     const into = await liveTheme(d, intoId);
     if (!from || !into) throw new Error("theme not found");
     await d.run(`UPDATE ai_insights SET theme_id = ? WHERE theme_id = ?`, intoId, fromId);
+    // Extra-theme links move too, without duplicating one the answer already has.
+    await d.run(
+      `DELETE FROM insight_themes WHERE theme_id = ? AND insight_id IN (SELECT insight_id FROM insight_themes WHERE theme_id = ?)`,
+      fromId,
+      intoId,
+    );
+    await d.run(`UPDATE insight_themes SET theme_id = ? WHERE theme_id = ?`, intoId, fromId);
+    await d.run(`DELETE FROM insight_themes WHERE theme_id = ? AND insight_id IN (SELECT id FROM ai_insights WHERE theme_id = ?)`, intoId, intoId);
     await d.run(`UPDATE themes SET merged_into_id = ? WHERE merged_into_id = ?`, intoId, fromId);
     await d.run(`UPDATE themes SET status = 'merged', merged_into_id = ? WHERE id = ?`, intoId, fromId);
     if (into.status === "suggested") await d.run(`UPDATE themes SET status = 'active' WHERE id = ?`, intoId);
@@ -693,4 +747,72 @@ export async function renameTheme(id: string, name: string): Promise<string> {
 
 export async function acceptTheme(id: string): Promise<void> {
   await db.run(`UPDATE themes SET status = 'active' WHERE id = ? AND status = 'suggested'`, id);
+}
+
+// ---------------------------------------------------------------- testimonials (with consent)
+
+export async function setQuoteConsent(respondentId: string, consent: boolean): Promise<void> {
+  await db.run(`UPDATE respondents SET quote_consent = ? WHERE id = ?`, consent ? 1 : 0, respondentId);
+}
+
+export interface TestimonialRow {
+  responseId: string;
+  transcript: string;
+  text: string | null;
+  status: "approved" | "rejected" | null;
+  sentiment: number;
+  theme: string | null;
+  sessionId: string;
+  sessionTitle: string;
+  createdAt: string;
+}
+
+/**
+ * Quotes from people who said it's OK to quote them: positive, quotable-length
+ * answers waiting for review, plus the ones already approved.
+ */
+export async function listTestimonials(): Promise<{ candidates: TestimonialRow[]; approved: TestimonialRow[] }> {
+  const rows = await db.all<TestimonialRow>(
+    `SELECT r.id AS "responseId", r.transcript, t.text, t.status, i.sentiment_score AS sentiment,
+            COALESCE(th.name, i.primary_theme) AS theme, s.id AS "sessionId", s.title AS "sessionTitle", r.created_at AS "createdAt"
+     FROM responses r
+     JOIN respondents p ON p.id = r.session_response_id
+     JOIN feedback_sessions s ON s.id = r.session_id
+     JOIN ai_insights i ON i.response_id = r.id
+     LEFT JOIN themes th ON th.id = i.theme_id
+     LEFT JOIN testimonials t ON t.response_id = r.id
+     WHERE p.quote_consent = 1
+       -- Praise, not suggestions: very positive, or positive with no change requested.
+       AND (i.sentiment_score >= 8 OR (i.sentiment_score >= 7 AND i.feature_requests = '[]'))
+     ORDER BY i.sentiment_score DESC, r.created_at DESC
+     LIMIT 300`,
+  );
+  return {
+    candidates: rows.filter((r) => !r.status && r.transcript.length >= 40 && r.transcript.length <= 700).slice(0, 50),
+    approved: rows.filter((r) => r.status === "approved"),
+  };
+}
+
+/** Approve (with optional light edits), turn down, or un-approve. Refuses answers without consent. */
+export async function decideTestimonial(responseId: string, decision: "approve" | "reject" | "remove", text?: string): Promise<void> {
+  const [row] = await db.all<{ consent: number; transcript: string }>(
+    `SELECT p.quote_consent AS consent, r.transcript FROM responses r JOIN respondents p ON p.id = r.session_response_id WHERE r.id = ?`,
+    responseId,
+  );
+  if (!row) throw new Error("not found");
+  if (decision === "remove") {
+    await db.run(`DELETE FROM testimonials WHERE response_id = ?`, responseId);
+    return;
+  }
+  if (decision === "approve" && Number(row.consent) !== 1) throw new Error("no consent");
+  const now = nowIso();
+  await db.transaction(async (d) => {
+    const [prior] = await d.all<{ createdAt: string }>(`SELECT created_at AS "createdAt" FROM testimonials WHERE response_id = ?`, responseId);
+    await d.run(`DELETE FROM testimonials WHERE response_id = ?`, responseId);
+    await d.run(
+      `INSERT INTO testimonials (id, response_id, text, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      newId(), responseId, (text ?? row.transcript).slice(0, 1000), decision === "approve" ? "approved" : "rejected",
+      prior?.createdAt ?? now, now,
+    );
+  });
 }
