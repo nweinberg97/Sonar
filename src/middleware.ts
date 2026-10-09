@@ -1,7 +1,7 @@
 /**
  * Password-protects the creator side when SONAR_PASSWORD is set.
  *
- * Open to everyone: respondent pages (/s/...) and the three endpoints a
+ * Open to everyone: respondent pages (/s/...) and the endpoints a
  * respondent needs. Everything else (dashboard, responses, insights, settings,
  * testing tools) asks for the password via the browser's sign-in prompt.
  * Use it over https only (Codespaces and tunnels give you https).
@@ -13,6 +13,7 @@ const PUBLIC = [
   /^\/api\/public\/[^/]+(\/(start|complete))?$/,
   /^\/api\/voice-answers$/,
   /^\/api\/answers$/,
+  /^\/api\/conversation\/(preview|burst|next|finish)$/,
   /^\/_next\//,
   /^\/icon\.svg$/,
   /^\/favicon\.ico$/,

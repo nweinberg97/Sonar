@@ -1,3 +1,5 @@
+import type { SessionFormat } from "./types";
+
 export interface Template {
   id: string;
   label: string;
@@ -5,9 +7,23 @@ export interface Template {
   title: string;
   description: string;
   questions: string[];
+  format?: SessionFormat;
+  goal?: string;
+  targetSeconds?: number;
 }
 
 export const TEMPLATES: Template[] = [
+  {
+    id: "conversation",
+    label: "Conversation",
+    hint: "One open question. Sonar asks follow-ups when people pause",
+    title: "Quick conversation",
+    description: "Just talk. We'll ask a follow-up if you pause.",
+    questions: ["How has your experience been so far?"],
+    format: "conversation",
+    goal: "What people value most, where they get stuck, and what one change would help them most.",
+    targetSeconds: 60,
+  },
   {
     id: "event",
     label: "Event feedback",

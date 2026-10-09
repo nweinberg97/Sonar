@@ -1,6 +1,6 @@
 import { deleteSession, getSession, updateSession } from "@/lib/data";
 import { fail, handle, json } from "@/lib/http";
-import { LIMITS, parseQuestions, parseStatus } from "@/lib/session-input";
+import { LIMITS, parseFormat, parseGoal, parseQuestions, parseStatus, parseTargetSeconds } from "@/lib/session-input";
 import { cleanText, readJson, requireId } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
@@ -18,8 +18,19 @@ export async function GET(_req: Request, ctx: Ctx) {
 export async function PATCH(req: Request, ctx: Ctx) {
   return handle(async () => {
     const id = requireId((await ctx.params).id);
-    if (!(await getSession(id))) return fail("We couldn't find that Sonar.", 404);
+    const current = await getSession(id);
+    if (!current) return fail("We couldn't find that Sonar.", 404);
     const body = await readJson(req);
+    const format = body.format === undefined ? undefined : parseFormat(body.format);
+    const questions = body.questions === undefined ? undefined : parseQuestions(body.questions);
+    if (format !== undefined && format !== current.format && current.respondentCount > 0) {
+      return fail("People have already answered this Sonar, so its format can't change. Create a new Sonar instead.", 409);
+    }
+    const finalFormat = format ?? current.format;
+    const questionCount = questions?.length ?? current.questions.length;
+    if (finalFormat === "conversation" && questionCount !== 1) {
+      return fail("A conversation Sonar has exactly one main question.", 400);
+    }
     await updateSession(id, {
       title: body.title === undefined ? undefined : cleanText(body.title, { max: LIMITS.title, field: "Title" }),
       description:
@@ -27,7 +38,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
           ? undefined
           : cleanText(body.description, { max: LIMITS.description, field: "Description", allowEmpty: true }),
       status: body.status === undefined ? undefined : parseStatus(body.status),
-      questions: body.questions === undefined ? undefined : parseQuestions(body.questions),
+      questions,
+      format,
+      goal: body.goal === undefined ? undefined : parseGoal(body.goal),
+      targetSeconds: body.targetSeconds === undefined ? undefined : parseTargetSeconds(body.targetSeconds),
     });
     return json({ session: await getSession(id) });
   });

@@ -7,7 +7,9 @@ import type {
   InputMode,
   Question,
   ResponseRow,
+  Segment,
   SessionDetail,
+  SessionFormat,
   SessionStats,
   SessionStatus,
   SessionSummary,
@@ -27,6 +29,7 @@ const WORKSPACE_ID = "ws_default";
 
 const SUMMARY_SQL = `
   SELECT s.id, s.title, s.description, s.slug, s.status, s.template,
+         s.format, s.goal, s.target_seconds AS "targetSeconds",
          s.created_at AS "createdAt", s.updated_at AS "updatedAt",
          (SELECT COUNT(*) FROM questions q WHERE q.session_id = s.id) AS "questionCount",
          (SELECT COUNT(DISTINCT r.session_response_id) FROM responses r WHERE r.session_id = s.id) AS "respondentCount",
@@ -84,6 +87,9 @@ export async function createSession(input: {
   questions: string[];
   status?: SessionStatus;
   slug?: string;
+  format?: SessionFormat;
+  goal?: string;
+  targetSeconds?: number;
 }): Promise<string> {
   return db.transaction(async (d) => {
     await ensureWorkspace(d);
@@ -91,9 +97,10 @@ export async function createSession(input: {
     const now = nowIso();
     const slug = input.slug ?? (await uniqueSlug(d, input.title));
     await d.run(
-      `INSERT INTO feedback_sessions (id, workspace_id, title, description, slug, status, template, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id, WORKSPACE_ID, input.title, input.description, slug, input.status ?? "draft", input.template, now, now,
+      `INSERT INTO feedback_sessions (id, workspace_id, title, description, slug, status, template, format, goal, target_seconds, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, WORKSPACE_ID, input.title, input.description, slug, input.status ?? "draft", input.template,
+      input.format ?? "questions", input.goal ?? "", input.targetSeconds ?? 60, now, now,
     );
     for (const [i, text] of input.questions.entries()) {
       await d.run(
@@ -112,6 +119,9 @@ export async function updateSession(
     description?: string;
     status?: SessionStatus;
     questions?: { id?: string; text: string }[];
+    format?: SessionFormat;
+    goal?: string;
+    targetSeconds?: number;
   },
 ): Promise<void> {
   await db.transaction(async (d) => {
@@ -133,6 +143,15 @@ export async function updateSession(
     }
     if (patch.status !== undefined) {
       await d.run(`UPDATE feedback_sessions SET status = ? WHERE id = ?`, patch.status, id);
+    }
+    if (patch.format !== undefined) {
+      await d.run(`UPDATE feedback_sessions SET format = ? WHERE id = ?`, patch.format, id);
+    }
+    if (patch.goal !== undefined) {
+      await d.run(`UPDATE feedback_sessions SET goal = ? WHERE id = ?`, patch.goal, id);
+    }
+    if (patch.targetSeconds !== undefined) {
+      await d.run(`UPDATE feedback_sessions SET target_seconds = ? WHERE id = ?`, patch.targetSeconds, id);
     }
     if (patch.questions) {
       const existing = await d.all<{ id: string }>(`SELECT id FROM questions WHERE session_id = ?`, id);
@@ -197,6 +216,7 @@ export async function createResponse(input: {
   inputMode: InputMode;
   durationMs: number;
   createdAt?: string;
+  segments?: Segment[];
 }): Promise<string> {
   // One answer per question per respondent: re-answering replaces the old one.
   return db.transaction(async (d) => {
@@ -211,10 +231,11 @@ export async function createResponse(input: {
     }
     const id = newId();
     await d.run(
-      `INSERT INTO responses (id, session_id, question_id, session_response_id, transcript, input_mode, duration_ms, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO responses (id, session_id, question_id, session_response_id, transcript, input_mode, duration_ms, segments, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id, input.sessionId, input.questionId, input.respondentId, input.transcript,
-      input.inputMode, Math.max(0, Math.round(input.durationMs)), input.createdAt ?? nowIso(),
+      input.inputMode, Math.max(0, Math.round(input.durationMs)),
+      input.segments?.length ? JSON.stringify(input.segments) : null, input.createdAt ?? nowIso(),
     );
     return id;
   });
@@ -264,7 +285,21 @@ function parseList(raw: unknown): string[] {
   }
 }
 
-type RawResponse = Omit<ResponseRow, "insight"> & {
+function parseSegments(raw: unknown): Segment[] | null {
+  if (typeof raw !== "string" || !raw) return null;
+  try {
+    const v = JSON.parse(raw);
+    if (!Array.isArray(v)) return null;
+    return v.filter(
+      (x): x is Segment => x && typeof x.text === "string" && (x.t === "speech" || x.t === "followup") && typeof x.atMs === "number",
+    );
+  } catch {
+    return null;
+  }
+}
+
+type RawResponse = Omit<ResponseRow, "insight" | "segments"> & {
+  segments: string | null;
   iScore: number | null;
   iLabel: Insight["sentiment_label"] | null;
   iTheme: string | null;
@@ -280,7 +315,7 @@ export async function listResponses(opts: { sessionId?: string; limit?: number }
   const rows = await db.all<RawResponse>(
     `SELECT r.id, r.session_id AS "sessionId", s.title AS "sessionTitle", r.question_id AS "questionId",
             q.text AS "questionText", q.position AS "questionPosition", r.session_response_id AS "sessionResponseId",
-            r.transcript, r.input_mode AS "inputMode", r.duration_ms AS "durationMs", r.created_at AS "createdAt",
+            r.transcript, r.input_mode AS "inputMode", r.duration_ms AS "durationMs", r.created_at AS "createdAt", r.segments,
             i.sentiment_score AS "iScore", i.sentiment_label AS "iLabel", i.primary_theme AS "iTheme",
             i.business_inefficiency AS "iIneff", i.feature_requests AS "iRequests", i.key_points AS "iPoints",
             i.executive_summary AS "iSummary"
@@ -293,8 +328,9 @@ export async function listResponses(opts: { sessionId?: string; limit?: number }
      LIMIT ${Math.min(Math.max(opts.limit ?? 500, 1), 2000)}`,
     ...params,
   );
-  return rows.map(({ iScore, iLabel, iTheme, iIneff, iRequests, iPoints, iSummary, ...r }) => ({
+  return rows.map(({ iScore, iLabel, iTheme, iIneff, iRequests, iPoints, iSummary, segments, ...r }) => ({
     ...r,
+    segments: parseSegments(segments),
     insight:
       iScore === null || iScore === undefined
         ? null

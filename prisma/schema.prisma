@@ -31,6 +31,13 @@ model FeedbackSession {
   slug        String       @unique
   status      String       @default("draft") // draft | published | closed
   template    String       @default("general")
+  // "questions": a list of questions, one recording each (the original flow).
+  // "conversation": one main question; AI follow-ups appear when the person pauses.
+  format        String     @default("questions")
+  // Conversation only: what the creator wants to learn (steers the follow-ups)
+  // and how long they'd like people to talk, in seconds (30–300).
+  goal          String     @default("")
+  targetSeconds Int        @default(60) @map("target_seconds")
   createdAt   String       @map("created_at")
   updatedAt   String       @map("updated_at")
   workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -77,6 +84,10 @@ model Response {
   transcript        String
   inputMode         String          @default("voice") @map("input_mode") // voice | text
   durationMs        Int             @default(0) @map("duration_ms")
+  // Conversation answers only: JSON list of what was said and each follow-up
+  // shown, in order, e.g. [{"t":"speech","text":"…","atMs":0},{"t":"followup","text":"…","atMs":9000,"by":"ai"}].
+  // `transcript` still holds the speech alone, so analysis works unchanged.
+  segments          String?
   createdAt         String          @map("created_at")
   session           FeedbackSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   question          Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)

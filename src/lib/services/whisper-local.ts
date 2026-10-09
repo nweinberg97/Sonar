@@ -15,7 +15,33 @@ import { transcriptionConfig } from "./config";
 type Transcriber = (audio: Float32Array, opts: Record<string, unknown>) => Promise<{ text?: string } | { text?: string }[]>;
 
 let loading: Promise<Transcriber> | null = null;
-let queue: Promise<unknown> = Promise.resolve();
+
+// One transcription at a time keeps a small server responsive and memory flat.
+// Live conversation bursts jump ahead of finished answers: someone is still
+// talking and their next follow-up depends on it.
+type Job = () => Promise<void>;
+const urgent: Job[] = [];
+const normal: Job[] = [];
+let busy = false;
+
+function schedule<T>(fn: () => Promise<T>, priority: "urgent" | "normal"): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    (priority === "urgent" ? urgent : normal).push(() => fn().then(resolve, reject));
+    void pump();
+  });
+}
+
+async function pump() {
+  if (busy) return;
+  busy = true;
+  try {
+    for (let job = urgent.shift() ?? normal.shift(); job; job = urgent.shift() ?? normal.shift()) {
+      await job().catch(() => undefined);
+    }
+  } finally {
+    busy = false;
+  }
+}
 
 async function load(): Promise<Transcriber> {
   const c = transcriptionConfig();
@@ -51,14 +77,11 @@ export function warmUpLocalWhisper(): Promise<void> {
   );
 }
 
-export async function transcribeLocally(audio: Blob): Promise<string> {
+export async function transcribeLocally(audio: Blob, priority: "urgent" | "normal" = "normal"): Promise<string> {
   const samples = decodeWav16k(new Uint8Array(await audio.arrayBuffer()));
   if (samples.length < 16000 * 0.3) return "";
   const asr = await getTranscriber();
-  // One transcription at a time keeps a small server responsive and memory flat.
-  const run = queue.then(() => asr(samples, { chunk_length_s: 30, stride_length_s: 5 }));
-  queue = run.catch(() => undefined);
-  const out = await run;
+  const out = await schedule(() => asr(samples, { chunk_length_s: 30, stride_length_s: 5 }), priority);
   const text = Array.isArray(out) ? out.map((o) => o.text ?? "").join(" ") : out.text ?? "";
   return cleanWhisperText(text);
 }

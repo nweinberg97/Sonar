@@ -4,7 +4,7 @@ import { isSlug } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
-/** What a respondent is allowed to see: title, description, questions. Nothing else. */
+/** What a respondent is allowed to see: title, description, questions, format. Not the creator's goal. */
 export async function GET(req: Request, ctx: { params: Promise<{ slug: string }> }) {
   return handle(async () => {
     const { slug } = await ctx.params;
@@ -20,6 +20,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
         title: s.title,
         description: s.description,
         status: s.status,
+        format: s.format,
+        targetSeconds: s.targetSeconds,
         questions: s.questions.map((q) => ({ id: q.id, text: q.text })),
       },
     });

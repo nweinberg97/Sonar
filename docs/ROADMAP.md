@@ -39,56 +39,27 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 
 **Acceptance:** no behavior changes, and the build passes.
 
-## Phase 1: Conversation mode with pause-triggered follow-ups
+## Phase 1: Conversation mode with pause-triggered follow-ups ✅ built
 
 *Highest value. This is the core experience being tested.*
 
-**Goal.** Test whether one open prompt plus gentle nudges gets richer answers than a list of questions.
+**Decisions made.** Pause length 3 s. Follow-ups are written live by the open-source model from what the person has said and the creator's goal (built-in follow-ups as the fallback). Text on screen only. The creator sets a target length (30 s–5 min, default 1 min); Done appears after 30 s; recording stops at 5 min; follow-ups stop once the target is reached.
 
-**User-facing behavior.**
+**What was built.**
 
-- **Creator side:** the creator picks a format, either "Questions" (today's default) or "Conversation". A Conversation Sonar has one main prompt and 2–4 short follow-ups that the creator writes. Templates prefill sensible ones.
-- **Respondent side:**
-  - The respondent taps the mic once and talks.
-  - After they've spoken for a bit and then gone quiet for about 3 seconds, the next follow-up fades in on screen as text.
-  - They keep talking, or tap "I'm done", which is always visible.
-  - It feels like one continuous recording.
+- Builder: Format (Questions / Conversation), main question, "What do you want to learn?" (never shown to respondents), "How long should people talk?". Format locks once people have answered. New "Conversation" template.
+- Respondent: tap once, talk. The browser captures raw audio and sends a burst every 8–15 s, cut at a breath (`useLiveCapture.ts`, `voice-activity.ts`). On a 3 s pause the next follow-up appears. Typed fallback still works.
+- Server (`conversation.ts`): bursts are transcribed ahead of other Whisper work; after each one the model drafts the next follow-up (one draft at a time across everyone, always from the newest text). A pause returns the ready draft, waits up to 1.5 s for one in progress, or falls back to a built-in follow-up. Model output is cleaned and checked before it's shown. Background analysis pauses while anyone is mid-conversation. Conversations people walk away from are saved after 3 min idle. Builder previews get real follow-ups and save nothing.
+- Data: `feedback_sessions.format`, `.goal`, `.target_seconds`; `responses.segments` (speech and follow-ups in order). `transcript` stays speech-only, so analysis and Insights work unchanged.
+- Responses shows a conversation as a thread with each follow-up where it appeared.
 
-**How it works (keep it simple).**
+**Tested.** Pause detector against synthetic loudness (steady speech, 2 s thinking pauses, silence from the start, a noisy room, non-stop speech); API flow (validation, built-in vs model follow-ups, duplicate bursts, late bursts, preview not saved, format lock, password still required); a full conversation in Chromium with a fake microphone; existing question-flow, studio and edge-case suites unchanged.
 
-- Pause detection runs in the browser, using the analyser that already drives the waveform. No server round trip.
-- The silence threshold adapts to the room's noise floor.
-- When a follow-up appears, the client quietly ends the current clip and starts a new one. Each segment uploads through the existing `/api/voice-answers` as its own answer to that follow-up. Transcription, analysis and insights work unchanged.
-- Cap each conversation at about 3 minutes. Whisper's 30-second chunking is already on, so longer clips are fine.
+**Known limits / next to watch.**
 
-**Data model.**
-
-- `FeedbackSession.format`: `"questions"` (default) or `"conversation"`.
-- `Question.kind`: `"question"` (default), `"prompt"` or `"followup"`.
-- `Response.trigger`, nullable: `"pause"`, `"tap"` or `"done"`. Records what moved the respondent on.
-
-**Acceptance criteria.**
-
-- Question-mode Sonars are unchanged.
-- A follow-up never appears mid-speech, never before about 5 seconds of speech, and never more than once per pause. Each follow-up is shown only once.
-- "I'm done" always works. Every segment arrives. None are lost if the respondent finishes quickly.
-- Responses view shows a conversation as one thread, in order, with each follow-up labeled.
-- The typed fallback still works.
-- It works on iOS Safari and Android Chrome.
-
-**What to test.**
-
-- A unit test for the pause detector using synthetic level sequences: steady speech, thinking pauses, a noisy room, silence from the start.
-- Real phones in a quiet room and in a noisy one.
-- Someone who pauses to think: how often does a follow-up interrupt them?
-- Compare words per respondent and completion rate against a Questions-mode Sonar with the same topic.
-
-**Decisions before starting.**
-
-- Pause length (suggest 3 s) and minimum speech before the first follow-up (suggest 5 s).
-- Follow-ups written by the creator (recommended) or fixed defaults only.
-- Text only (recommended) or also spoken aloud.
-- Maximum length.
+- One primary theme per conversation: a long answer covering several topics is summarised under one theme. Phase 3 (theme library) is the natural place to split it.
+- 2-core Codespace: about 3–6 s per burst and 3–5 s per draft, so one or two simultaneous talkers get model follow-ups; more get built-in ones.
+- Not yet tried on real iOS Safari and Android devices. Check this first.
 
 ## Phase 2: Deployment modes (link, email, embed) and the hosting decision
 
@@ -255,7 +226,6 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 
 ## Premature: cut or defer, and say so if asked
 
-- **AI-written live follow-ups.** The model would need to read the transcript mid-answer, and a 3B model on CPU is too slow for that today. Creator-written follow-ups prove the idea first.
 - **Behavior-triggered widgets** ("show after the user does X"). These need an SDK and event tracking. A manual pop-up is enough to test.
 - **Roadmap-aware timing.** Needs integrations and a theme library first.
 - **Jira.** Only when a real user asks.

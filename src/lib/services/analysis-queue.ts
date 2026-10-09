@@ -13,6 +13,7 @@
 import { listPendingAnalysis, saveInsight } from "../data";
 import { insightService } from "./insights";
 import { aiConfig, ollamaHealth } from "./config";
+import { liveBusy } from "./live-state";
 import { mockAnalyze } from "./mock";
 
 const MAX_TRIES = 5;
@@ -25,6 +26,7 @@ let consecutiveFailures = 0;
 /** While set, the model is treated as down and the built-in extractor is used. */
 let degradedUntil = 0;
 const DEGRADED_MS = 5 * 60_000;
+let pausedForLive = false;
 
 async function drain() {
   while (true) {
@@ -32,6 +34,13 @@ async function drain() {
     const batch = await listPendingAnalysis(10);
     if (batch.length === 0) return;
     for (const item of batch) {
+      // Someone is mid-conversation: leave the model free for their follow-ups.
+      // The timer in startAnalysisQueue picks this back up a few seconds later.
+      if (liveBusy() && Date.now() >= degradedUntil && aiConfig().provider !== "mock") {
+        pausedForLive = true;
+        return;
+      }
+      pausedForLive = false;
       if (Date.now() < degradedUntil) {
         await saveInsight(item.id, mockAnalyze(item.transcript, item.questionText), undefined, "builtin");
         continue;
@@ -107,5 +116,6 @@ export function analysisStatus() {
     lastError,
     retryingAt: backoffUntil > Date.now() ? new Date(backoffUntil).toISOString() : null,
     usingBuiltinUntil: degradedUntil > Date.now() ? new Date(degradedUntil).toISOString() : null,
+    pausedForLiveConversation: pausedForLive && liveBusy(),
   };
 }

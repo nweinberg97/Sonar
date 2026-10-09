@@ -15,8 +15,16 @@ import type { Insight, ResponseRow, SentimentLabel, Synthesis, ThemeCount } from
 
 // ---------------------------------------------------------------- LLM transport
 
-async function complete(system: string, user: string): Promise<string> {
+export interface CompleteOptions {
+  temperature?: number;
+  /** Cap on generated tokens. Short outputs (follow-ups) come back much faster. */
+  maxTokens?: number;
+  timeoutMs?: number;
+}
+
+export async function complete(system: string, user: string, opts: CompleteOptions = {}): Promise<string> {
   const c = aiConfig();
+  const temperature = opts.temperature ?? 0.2;
   if (c.provider === "ollama") {
     // Ollama's native API: format "json" makes the model emit valid JSON.
     const res = await fetch(`${c.baseUrl.replace(/\/v1\/?$/, "").replace(/\/$/, "")}/api/chat`, {
@@ -27,13 +35,13 @@ async function complete(system: string, user: string): Promise<string> {
         stream: false,
         format: "json",
         keep_alive: "30m",
-        options: { temperature: 0.2, num_ctx: 4096 },
+        options: { temperature, num_ctx: 4096, ...(opts.maxTokens ? { num_predict: opts.maxTokens } : {}) },
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
         ],
       }),
-      signal: AbortSignal.timeout(180_000),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 180_000),
     });
     if (!res.ok) throw new Error(`ollama ${res.status}: ${(await res.text()).slice(0, 300)}`);
     const data = (await res.json()) as { message?: { content?: string } };
@@ -49,11 +57,12 @@ async function complete(system: string, user: string): Promise<string> {
       },
       body: JSON.stringify({
         model: c.model,
-        max_tokens: 1024,
+        max_tokens: opts.maxTokens ?? 1024,
+        temperature,
         system,
         messages: [{ role: "user", content: user }],
       }),
-      signal: AbortSignal.timeout(45_000),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 45_000),
     });
     if (!res.ok) throw new Error(`anthropic ${res.status}: ${(await res.text()).slice(0, 300)}`);
     const data = (await res.json()) as { content?: { type: string; text?: string }[] };
@@ -65,7 +74,8 @@ async function complete(system: string, user: string): Promise<string> {
     headers: { "content-type": "application/json", ...(c.apiKey ? { Authorization: `Bearer ${c.apiKey}` } : {}) },
     body: JSON.stringify({
       model: c.model,
-      temperature: 0.2,
+      temperature,
+      ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: system },
@@ -79,7 +89,7 @@ async function complete(system: string, user: string): Promise<string> {
   return data.choices?.[0]?.message?.content ?? "";
 }
 
-function extractJson(text: string): unknown {
+export function extractJson(text: string): unknown {
   const fenced = text.replace(/```(?:json)?/gi, "");
   const start = fenced.indexOf("{");
   const end = fenced.lastIndexOf("}");

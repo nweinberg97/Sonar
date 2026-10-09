@@ -21,7 +21,15 @@ export async function POST(req: Request) {
         ? template.description
         : cleanText(body.description, { max: LIMITS.description, field: "Description", allowEmpty: true });
     const questions = body.questions === undefined ? template.questions : parseQuestions(body.questions).map((q) => q.text);
-    const id = await createSession({ title, description, template: template.id, questions });
+    const id = await createSession({
+      title,
+      description,
+      template: template.id,
+      questions,
+      format: template.format,
+      goal: template.goal,
+      targetSeconds: template.targetSeconds,
+    });
     return json({ session: await getSession(id) }, 201);
   });
 }

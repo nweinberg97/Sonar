@@ -14,6 +14,8 @@ export interface TranscribeInput {
   durationMs: number;
   /** The question being answered, used by mock mode and as a vocabulary hint. */
   question: string;
+  /** Live conversation bursts go ahead of finished answers (local Whisper only). */
+  priority?: "urgent" | "normal";
 }
 
 export interface TranscriptionProviderImpl {
@@ -61,9 +63,9 @@ function openAICompatible(name: string, baseUrl: string, apiKey: string, model: 
 
 const localProvider: TranscriptionProviderImpl = {
   name: "local",
-  async transcribe({ audio }) {
+  async transcribe({ audio, priority }) {
     const { transcribeLocally } = await import("./whisper-local");
-    return transcribeLocally(audio);
+    return transcribeLocally(audio, priority);
   },
 };
 

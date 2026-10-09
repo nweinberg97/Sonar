@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, displayUrl, shareUrl } from "@/lib/client";
-import type { SessionDetail, SessionStatus } from "@/lib/types";
+import type { SessionDetail, SessionFormat, SessionStatus } from "@/lib/types";
 import { btn, CopyButton, ErrorNote, Loading, SessionTabs, StatusChip } from "./ui";
 
 interface Draft {
@@ -27,6 +27,9 @@ export function Builder() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [questions, setQuestions] = useState<Draft[]>([]);
+  const [format, setFormat] = useState<SessionFormat>("questions");
+  const [goal, setGoal] = useState("");
+  const [targetSeconds, setTargetSeconds] = useState(60);
   const [save, setSave] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState("");
   const [previewKey, setPreviewKey] = useState(0);
@@ -43,6 +46,9 @@ export function Builder() {
     setTitle(s.title);
     setDescription(s.description);
     setQuestions(s.questions.map((q) => ({ key: nextKey(), id: q.id, text: q.text })));
+    setFormat(s.format ?? "questions");
+    setGoal(s.goal ?? "");
+    setTargetSeconds(s.targetSeconds ?? 60);
   }, []);
 
   useEffect(() => {
@@ -56,7 +62,9 @@ export function Builder() {
   }, [isNew, session]);
 
   const persist = useCallback(async () => {
-    const filled = questions.filter((q) => q.text.trim());
+    const nonEmpty = questions.filter((q) => q.text.trim());
+    // A conversation has one main question: the first one.
+    const filled = format === "conversation" ? nonEmpty.slice(0, 1) : nonEmpty;
     if (!title.trim() || filled.length === 0) {
       setSave("error");
       setSaveError(!title.trim() ? "Give your Sonar a title." : "Add at least one question.");
@@ -67,7 +75,7 @@ export function Builder() {
     try {
       const { session: s } = await api<{ session: SessionDetail }>(`/api/sessions/${id}`, {
         method: "PATCH",
-        json: { title, description, questions: filled.map((q) => ({ id: q.id, text: q.text })) },
+        json: { title, description, format, goal, targetSeconds, questions: filled.map((q) => ({ id: q.id, text: q.text })) },
       });
       // Only clear the dirty flag if nothing changed while this save was in flight.
       if (version.current === savingVersion) dirty.current = false;
@@ -75,7 +83,8 @@ export function Builder() {
       // Attach server ids to newly added questions, keeping local keys stable.
       setQuestions((prev) => {
         let i = 0;
-        return prev.map((q) => (q.text.trim() ? { ...q, id: s.questions[i++]?.id ?? q.id } : q));
+        const kept = format === "conversation" ? prev.filter((q) => q.text.trim()).slice(0, 1) : prev;
+        return kept.map((q) => (q.text.trim() ? { ...q, id: s.questions[i++]?.id ?? q.id } : q));
       });
       setSave(dirty.current ? "pending" : "saved");
       setSaveError("");
@@ -84,7 +93,7 @@ export function Builder() {
       setSave("error");
       setSaveError((e as Error).message);
     }
-  }, [id, title, description, questions]);
+  }, [id, title, description, questions, format, goal, targetSeconds]);
 
   // Autosave shortly after the last edit.
   useEffect(() => {
@@ -95,7 +104,7 @@ export function Builder() {
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
     };
-  }, [title, description, questions, persist]);
+  }, [title, description, questions, format, goal, targetSeconds, persist]);
 
   useEffect(() => {
     if (!focusKey.current) return;
@@ -187,6 +196,28 @@ export function Builder() {
             <span className="mt-1.5 block text-sm text-ink/45">The first thing people see. Keep it short and human.</span>
           </label>
 
+          <FormatPicker
+            value={format}
+            locked={session.respondentCount > 0}
+            onChange={(f) => edit(() => setFormat(f))}
+          />
+
+          {format === "conversation" ? (
+            <ConversationFields
+              question={questions[0]?.text ?? ""}
+              extraQuestions={questions.filter((q) => q.text.trim()).length - 1}
+              goal={goal}
+              targetSeconds={targetSeconds}
+              onQuestion={(text) =>
+                edit(() =>
+                  setQuestions((qs) => (qs.length ? qs.map((x, i) => (i === 0 ? { ...x, text } : x)) : [{ key: nextKey(), text }])),
+                )
+              }
+              onGoal={(v) => edit(() => setGoal(v))}
+              onTarget={(v) => edit(() => setTargetSeconds(v))}
+            />
+          ) : (
+          <>
           <ol className="mt-10 space-y-3">
             {questions.map((q, i) => (
               <li key={q.key} className="group flex gap-4 rounded-2xl border border-ink/10 p-4 focus-within:border-blue">
@@ -244,6 +275,8 @@ export function Builder() {
           <p className="mt-4 text-sm text-ink/45">
             Three open questions is the sweet spot. People answer each one in about 30 seconds.
           </p>
+          </>
+          )}
 
           <div className="mt-16 border-t border-ink/8 pt-6">
             <button onClick={remove} className="text-sm text-ink/45 hover:text-ink">
@@ -377,5 +410,109 @@ function AutoTextarea({
       onChange={(e) => onChange(e.target.value.replace(/\n/g, " "))}
       className="block w-full resize-none bg-transparent text-lg leading-snug outline-none placeholder:text-ink/30"
     />
+  );
+}
+
+const TARGETS = [30, 45, 60, 90, 120, 180, 300];
+
+function FormatPicker({ value, locked, onChange }: { value: SessionFormat; locked: boolean; onChange: (f: SessionFormat) => void }) {
+  const options: { id: SessionFormat; label: string; hint: string }[] = [
+    { id: "questions", label: "Questions", hint: "A short list. One recording each." },
+    { id: "conversation", label: "Conversation", hint: "One question. Sonar asks follow-ups when people pause." },
+  ];
+  return (
+    <fieldset className="mt-10">
+      <legend className="text-sm font-medium text-ink/55">Format</legend>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {options.map((o) => (
+          <label
+            key={o.id}
+            className={`flex cursor-pointer gap-3 rounded-2xl border px-4 py-3 transition ${
+              value === o.id ? "border-blue bg-blue/[0.04]" : "border-ink/10 hover:border-ink/30"
+            } ${locked && value !== o.id ? "cursor-not-allowed opacity-50" : ""}`}
+          >
+            <input
+              type="radio"
+              name="format"
+              value={o.id}
+              checked={value === o.id}
+              disabled={locked && value !== o.id}
+              onChange={() => onChange(o.id)}
+              className="mt-1.5 accent-[var(--color-blue,#3867ff)]"
+            />
+            <span>
+              <span className="block font-semibold">{o.label}</span>
+              <span className="block text-sm text-ink/55">{o.hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {locked && <p className="mt-2 text-sm text-ink/45">People have already answered, so the format is fixed. Create a new Sonar to try the other one.</p>}
+    </fieldset>
+  );
+}
+
+function ConversationFields({
+  question,
+  extraQuestions,
+  goal,
+  targetSeconds,
+  onQuestion,
+  onGoal,
+  onTarget,
+}: {
+  question: string;
+  extraQuestions: number;
+  goal: string;
+  targetSeconds: number;
+  onQuestion: (v: string) => void;
+  onGoal: (v: string) => void;
+  onTarget: (v: number) => void;
+}) {
+  return (
+    <div className="mt-8 space-y-8">
+      <div>
+        <label htmlFor="main-question" className="text-sm font-medium text-ink/55">
+          Main question
+        </label>
+        <div className="mt-2 rounded-2xl border border-ink/10 p-4 focus-within:border-blue">
+          <AutoTextarea id="main-question" value={question} placeholder="One open question people can talk about" onChange={onQuestion} />
+        </div>
+        {extraQuestions > 0 && (
+          <p className="mt-1.5 text-sm text-ink/45">
+            A conversation uses one question. Your other {extraQuestions === 1 ? "question is" : `${extraQuestions} questions are`} removed when this saves.
+          </p>
+        )}
+      </div>
+      <label className="block">
+        <span className="text-sm font-medium text-ink/55">What do you want to learn?</span>
+        <textarea
+          value={goal}
+          onChange={(e) => onGoal(e.target.value)}
+          maxLength={400}
+          rows={3}
+          placeholder="e.g. Where new users get stuck in their first week, and what would have helped."
+          className="mt-2 w-full resize-none rounded-xl border border-ink/10 bg-white px-4 py-3 text-lg leading-snug outline-none placeholder:text-ink/30 focus:border-blue"
+        />
+        <span className="mt-1.5 block text-sm text-ink/45">Sonar uses this to choose follow-ups. Respondents never see it.</span>
+      </label>
+      <label className="block">
+        <span className="text-sm font-medium text-ink/55">How long should people talk?</span>
+        <select
+          value={targetSeconds}
+          onChange={(e) => onTarget(Number(e.target.value))}
+          className="mt-2 block rounded-xl border border-ink/10 bg-white px-4 py-3 text-lg outline-none focus:border-blue"
+        >
+          {TARGETS.map((t) => (
+            <option key={t} value={t}>
+              {t < 60 ? `${t} seconds` : t % 60 ? `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")} minutes` : `${t / 60} ${t === 60 ? "minute" : "minutes"}`}
+            </option>
+          ))}
+        </select>
+        <span className="mt-1.5 block text-sm text-ink/45">
+          Follow-ups keep people going until then. Done appears after 30 seconds, and recording stops at 5 minutes.
+        </span>
+      </label>
+    </div>
   );
 }

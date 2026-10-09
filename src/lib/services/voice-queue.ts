@@ -11,6 +11,7 @@
  */
 import { createResponse } from "../data";
 import { kickAnalysis } from "./analysis-queue";
+import { finishingConversations } from "./live-state";
 import { transcriptionService } from "./transcription";
 
 export interface VoiceJob {
@@ -88,8 +89,8 @@ export function enqueueVoice(job: VoiceJob): boolean {
   return true;
 }
 
-/** Recordings received but not yet turned into text. */
+/** Recordings received but not yet turned into text (including conversations that just ended). */
 export function waitingForTranscription(sessionId?: string): number {
-  if (!sessionId) return queue.length + (running ? 1 : 0);
-  return waitingBySession.get(sessionId) ?? 0;
+  if (!sessionId) return queue.length + (running ? 1 : 0) + finishingConversations();
+  return (waitingBySession.get(sessionId) ?? 0) + finishingConversations(sessionId);
 }

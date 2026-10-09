@@ -1,6 +1,12 @@
 export type SessionStatus = "draft" | "published" | "closed";
 export type SentimentLabel = "positive" | "mixed" | "neutral" | "negative";
 export type InputMode = "voice" | "text";
+export type SessionFormat = "questions" | "conversation";
+
+/** One piece of a conversation answer: something said, or a follow-up shown. */
+export type Segment =
+  | { t: "speech"; text: string; atMs: number }
+  | { t: "followup"; text: string; atMs: number; by: "ai" | "builtin" };
 
 export interface Question {
   id: string;
@@ -15,6 +21,9 @@ export interface SessionSummary {
   slug: string;
   status: SessionStatus;
   template: string;
+  format: SessionFormat;
+  goal: string;
+  targetSeconds: number;
   createdAt: string;
   updatedAt: string;
   questionCount: number;
@@ -50,6 +59,8 @@ export interface ResponseRow {
   inputMode: InputMode;
   durationMs: number;
   createdAt: string;
+  /** Conversation answers: speech and follow-ups in order. Null for single answers. */
+  segments: Segment[] | null;
   insight: Insight | null;
 }
 

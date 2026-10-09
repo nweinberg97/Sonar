@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { api, formatDuration, plural, shareUrl, timeAgo } from "@/lib/client";
-import type { ResponseRow, SessionStats } from "@/lib/types";
+import type { ResponseRow, Segment, SessionStats } from "@/lib/types";
 import { btn, CopyButton, EmptySignal, ErrorNote, Loading, PageHeader, SentimentTag, SessionPicker, SessionTabs } from "./ui";
 import { useSelectedSession } from "./useSelectedSession";
 
@@ -137,9 +137,14 @@ export function ResponsesView() {
                     <li key={r.id} className="grid gap-x-8 gap-y-3 md:grid-cols-[minmax(0,1fr)_15rem]">
                       <div>
                         <p className="text-sm text-ink/50">{r.questionText}</p>
-                        <p className="mt-1.5 text-[1.05rem] leading-relaxed">{r.transcript}</p>
+                        {r.segments?.length ? (
+                          <Thread segments={r.segments} />
+                        ) : (
+                          <p className="mt-1.5 text-[1.05rem] leading-relaxed">{r.transcript}</p>
+                        )}
                         <p className="mt-2 text-xs text-ink/40">
                           {r.inputMode === "voice" ? `Spoken, ${formatDuration(r.durationMs)}` : "Typed"}
+                          {r.segments && countFollowups(r.segments) > 0 ? ` · ${plural(countFollowups(r.segments), "follow-up")}` : ""}
                         </p>
                       </div>
                       {r.insight ? (
@@ -198,5 +203,30 @@ function FilterChip({ active, onClick, children, title }: { active: boolean; onC
     >
       {children}
     </button>
+  );
+}
+
+const countFollowups = (segments: Segment[]) => segments.filter((x) => x.t === "followup").length;
+
+/** A conversation answer: what they said, with each follow-up where it appeared. */
+function Thread({ segments }: { segments: Segment[] }) {
+  return (
+    <div className="mt-1.5 space-y-3">
+      {segments.map((seg, i) =>
+        seg.t === "speech" ? (
+          <p key={i} className="text-[1.05rem] leading-relaxed">
+            {seg.text}
+          </p>
+        ) : (
+          <p key={i} className="flex gap-2 text-sm text-ink/55">
+            <span className="shrink-0 font-medium text-blue">Follow-up</span>
+            <span>
+              {seg.text}
+              {seg.by === "builtin" && <span className="text-ink/35"> (built-in)</span>}
+            </span>
+          </p>
+        ),
+      )}
+    </div>
   );
 }

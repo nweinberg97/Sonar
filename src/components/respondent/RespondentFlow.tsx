@@ -5,42 +5,24 @@ import { api, formatClock } from "@/lib/client";
 import { SonarMark } from "../SonarMark";
 import { Waveform } from "../Waveform";
 import { toWav16k } from "../toWav";
-import { useRecorder, type RecorderError } from "../useRecorder";
+import { useRecorder } from "../useRecorder";
+import { ConversationStage } from "./ConversationStage";
+import { MIC_ERRORS, MicIcon, PreviewBadge } from "./shared";
 
 interface PublicSession {
   slug: string;
   title: string;
   description: string;
   status: string;
+  /** Older servers don't send these; treat that as a question list. */
+  format?: "questions" | "conversation";
+  targetSeconds?: number;
   questions: { id: string; text: string }[];
 }
 
 type Phase = "loading" | "unavailable" | "intro" | "asking" | "finishing" | "done";
 type Step = "idle" | "recording" | "sent" | "typing";
 
-
-const MIC_ERRORS: Record<RecorderError, { title: string; body: string }> = {
-  denied: {
-    title: "We couldn't access your microphone.",
-    body: "Allow microphone access for this site (look for the mic or lock icon next to the address bar), then try again.",
-  },
-  "no-mic": {
-    title: "We couldn't find a microphone.",
-    body: "Plug one in or switch devices, then try again. You can also type your answer.",
-  },
-  insecure: {
-    title: "Voice needs a secure connection.",
-    body: "Open this link over https to speak your answer, or type it instead.",
-  },
-  unsupported: {
-    title: "This browser can't record audio.",
-    body: "Try Safari or Chrome, or type your answer instead.",
-  },
-  failed: {
-    title: "We couldn't start recording.",
-    body: "Something on this device blocked the microphone. Try again, or type your answer.",
-  },
-};
 
 export function RespondentFlow({ slug, preview = false }: { slug: string; preview?: boolean }) {
   const [phase, setPhase] = useState<Phase>("loading");
@@ -230,7 +212,10 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
   }
 
   if (phase === "intro") {
-    const minutes = Math.max(1, Math.round((total * 40) / 60));
+    const conversation = session.format === "conversation";
+    const minutes = conversation
+      ? Math.max(1, Math.round((session.targetSeconds ?? 60) / 60))
+      : Math.max(1, Math.round((total * 40) / 60));
     return (
       <Shell preview={preview}>
         <div className="flex flex-1 flex-col pb-10 pt-6">
@@ -243,7 +228,9 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
               {session.description || "Tell us what you really thought."}
             </h1>
             <p className="mt-5 text-lg text-ink/65">
-              About {minutes} {minutes === 1 ? "minute" : "minutes"}. {total} {total === 1 ? "question" : "questions"}. Just talk, no typing.
+              {conversation
+                ? `About ${minutes} ${minutes === 1 ? "minute" : "minutes"}. One question, then just talk.`
+                : `About ${minutes} ${minutes === 1 ? "minute" : "minutes"}. ${total} ${total === 1 ? "question" : "questions"}. Just talk, no typing.`}
             </p>
           </div>
           <button
@@ -299,6 +286,20 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
   }
 
   // phase === "asking"
+  if (session.format === "conversation" && question) {
+    return (
+      <ConversationStage
+        slug={slug}
+        question={question}
+        targetSeconds={session.targetSeconds ?? 60}
+        respondentId={respondentRef.current}
+        preview={preview}
+        track={(p) => pendingRef.current.push(p)}
+        onDone={() => void advance()}
+      />
+    );
+  }
+
   const micError = rec.error ? MIC_ERRORS[rec.error] : null;
 
   return (
@@ -481,22 +482,5 @@ function Shell({ children, preview = false }: { children: React.ReactNode; previ
         {children}
       </div>
     </div>
-  );
-}
-
-function PreviewBadge({ dark = false }: { dark?: boolean }) {
-  return (
-    <p className={`mb-4 self-start rounded-full px-3 py-1 text-xs font-medium ${dark ? "bg-white/10 text-white/70" : "bg-ink/[0.06] text-ink/60"}`}>
-      Preview. Answers aren&rsquo;t saved.
-    </p>
-  );
-}
-
-function MicIcon() {
-  return (
-    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect x="8.5" y="2.5" width="7" height="12" rx="3.5" fill="currentColor" />
-      <path d="M5 11a7 7 0 0 0 14 0M12 18v3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
   );
 }
