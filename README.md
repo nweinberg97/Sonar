@@ -67,7 +67,7 @@ Creator
 
 | Path | What's there |
 | --- | --- |
-| `src/components/respondent/RespondentFlow.tsx` | The respondent experience: intro, recording, processing, review, typed fallback, completion |
+| `src/components/respondent/RespondentFlow.tsx` | The respondent experience: intro, recording, instant send, typed fallback, completion |
 | `src/components/useRecorder.ts`, `Waveform.tsx` | Mic capture and the real-input waveform |
 | `src/components/studio/*` | Creator workspace: feedback list, builder, responses, insights, settings |
 | `src/lib/services/transcription.ts` | `transcriptionService` with local Whisper, mock, OpenAI and Groq providers |
@@ -101,12 +101,12 @@ Nothing else in the app changes: the SQL sticks to syntax both databases share (
 
 ### Not built, on purpose
 
-User accounts (one shared creator password instead), billing, branching logic, integrations, exports, permanent audio storage.
+User accounts (one shared creator password instead), billing, branching logic, integrations, exports, permanent audio storage. What's planned next, in order: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## What to watch in user tests
 
 - Do people tap the mic without being told to?
 - How long are spoken answers compared with what they'd type?
-- How often do they press "Record again" or switch to typing?
+- How often do they switch to typing instead of speaking?
 - Average completion time (shown on Responses)
 - Whether the creator can say what to do next from the Insights page alone
