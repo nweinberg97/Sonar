@@ -1,4 +1,4 @@
-import type { SessionFormat, SessionStatus } from "./types";
+import type { Cadence, SessionFormat, SessionStatus } from "./types";
 import { cleanText, isId, ValidationError } from "./validate";
 
 export const LIMITS = {
@@ -49,4 +49,20 @@ export function parseTargetSeconds(value: unknown): number {
   const n = Number(value);
   if (!Number.isFinite(n)) throw new ValidationError("Target length must be a number of seconds.");
   return Math.min(LIMITS.maxSeconds, Math.max(LIMITS.minSeconds, Math.round(n / 15) * 15));
+}
+
+export function parseCadence(value: unknown): Cadence {
+  if (value === "none" || value === "weekly") return value;
+  throw new ValidationError("Repeat must be none or weekly.");
+}
+
+/** An IANA time zone like "America/Vancouver" (what the browser reports). */
+export function parseTimezone(value: unknown): string {
+  if (typeof value !== "string" || value.length > 64) throw new ValidationError("Time zone isn't valid.");
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return value;
+  } catch {
+    throw new ValidationError("Time zone isn't valid.");
+  }
 }

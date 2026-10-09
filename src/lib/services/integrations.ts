@@ -14,6 +14,7 @@ import { getSession, getShareItem, listResponses, saveShareItem, type ShareItem 
 import type { Synthesis } from "../types";
 import { nowIso } from "../validate";
 import { insightService } from "./insights";
+import { computePulse } from "./pulse";
 
 function env(name: string): string {
   return (process.env[name] ?? "").trim();
@@ -74,6 +75,37 @@ export async function draftSlackSummary(sessionId: string, link: string): Promis
   }
   if (link) lines.push("", `Full insights: ${link}`);
   return { kind: "slack", source: "summary", title: "", body: lines.join("\n") };
+}
+
+/** A Slack message for one week of a weekly pulse, compared with the week before. */
+export async function draftSlackPulse(sessionId: string, weekKey: string, link: string): Promise<Draft> {
+  const session = await getSession(sessionId);
+  const pulse = await computePulse(sessionId);
+  if (!session || !pulse) throw new ShareError("We couldn't find that Sonar.");
+  const w = pulse.weeks.find((x) => x.key === weekKey);
+  if (!w) throw new ShareError("That week isn't available.");
+  if (w.hidden) throw new ShareError(`That week had fewer than ${pulse.minRespondents} people, so it stays private.`);
+  const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+  const lines = [`*${session.title}*: weekly pulse for ${w.label}`, ""];
+  lines.push(
+    `${w.respondents} ${w.respondents === 1 ? "person" : "people"}${
+      w.vs ? (w.vs.respondentsDelta === 0 ? " (same as last week)" : ` (${sign(w.vs.respondentsDelta)} vs last week)`) : ""
+    }` +
+      (w.avgSentiment !== null
+        ? `, mood ${w.avgSentiment}/10${w.vs?.sentimentDelta != null ? (w.vs.sentimentDelta === 0 ? " (no change)" : ` (${sign(w.vs.sentimentDelta)})`) : ""}`
+        : ""),
+  );
+  if (w.themes.length) {
+    lines.push("", "*Top themes this week*");
+    for (const t of w.themes.slice(0, 5)) lines.push(`• ${t.theme} (${t.mentions})`);
+  }
+  if (w.vs) {
+    if (w.vs.up.length) lines.push("", `*Coming up more:* ${w.vs.up.map((c) => `${c.theme} (${c.before}→${c.now})`).join(", ")}`);
+    if (w.vs.new.length) lines.push(`*New this week:* ${w.vs.new.join(", ")}`);
+    if (w.vs.down.length) lines.push(`*Coming up less:* ${w.vs.down.map((c) => `${c.theme} (${c.before}→${c.now})`).join(", ")}`);
+  }
+  if (link) lines.push("", `Full insights: ${link}`);
+  return { kind: "slack", source: `pulse:${w.key}`, title: "", body: lines.join("\n") };
 }
 
 const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();

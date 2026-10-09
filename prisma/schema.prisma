@@ -19,6 +19,7 @@ model Workspace {
   name      String
   createdAt String            @map("created_at")
   sessions  FeedbackSession[]
+  themes    Theme[]
 
   @@map("workspaces")
 }
@@ -38,6 +39,10 @@ model FeedbackSession {
   // and how long they'd like people to talk, in seconds (30–300).
   goal          String     @default("")
   targetSeconds Int        @default(60) @map("target_seconds")
+  // "none" = one-off. "weekly" = a pulse: same link every week, Insights compares
+  // each week with the one before. Weeks run Monday–Sunday in `timezone`.
+  cadence       String     @default("none")
+  timezone      String     @default("UTC")
   createdAt   String       @map("created_at")
   updatedAt   String       @map("updated_at")
   workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -111,9 +116,12 @@ model AIInsight {
   keyPoints            String   @default("[]") @map("key_points") // JSON string[]
   executiveSummary     String   @map("executive_summary")
   source               String   @default("builtin") // which engine wrote it: "ollama:<model>", "builtin", "seed", …
+  // The canonical theme from the library (see Theme). primary_theme keeps the model's raw label.
+  themeId              String?  @map("theme_id")
   createdAt            String   @map("created_at")
   response             Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
 
+  @@index([themeId])
   @@map("ai_insights")
 }
 
@@ -148,4 +156,23 @@ model ShareItem {
 
   @@index([sessionId])
   @@map("share_items")
+}
+
+// The theme library: one name per idea, shared by every Sonar in the workspace,
+// so counts, weekly pulses and tickets add up. The model is asked to reuse
+// these names; anything new arrives as "suggested" until the creator accepts,
+// renames or merges it. Merged themes keep pointing at the theme they joined,
+// so the old label keeps landing in the right place.
+model Theme {
+  id           String    @id
+  workspaceId  String    @map("workspace_id")
+  name         String
+  key          String // normalised name used for matching ("Workshops" = "workshop")
+  status       String    @default("active") // active | suggested | merged
+  mergedIntoId String?   @map("merged_into_id")
+  createdAt    String    @map("created_at")
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
+  @@map("themes")
 }

@@ -31,6 +31,12 @@ How a conversation stays instant on a small server: while someone talks, their b
 
 On a free 2-core Codespace, a burst takes roughly 3–6 seconds to transcribe and a follow-up 3–5 seconds to draft: comfortable for one or two people talking at once. Beyond that, people get more of the built-in follow-ups.
 
+## Library, weekly pulse and integrations
+
+- **Library** (`/library`): one list of themes across every Sonar, with one name per idea. The model is given the existing theme names and asked to reuse them; anything new shows up under "New themes to review" until you accept, rename or merge it. Merging moves the answers over, and the old name keeps landing in the right place. Insights, the pulse, Slack and Linear all use these names.
+- **Weekly pulse:** set a Sonar's *Repeat* to *Weekly pulse* in the builder. It's the same link every week. Insights then shows each week (Monday–Sunday in your time zone) with people, mood and top themes compared with the week before. A week with fewer than 3 people stays hidden so no one can be identified. Weeks are worked out from when answers came in, so nothing has to run on a schedule.
+- **Slack and Linear:** "Send to Slack" (the summary, or a pulse week) and "Linear issue" (on any action, request or friction point, with anonymous quotes) on the Insights page. Every send opens an editable preview and only goes out when you press Send. Each attempt is recorded, and a double press can't post twice. Setup steps are in Settings → Integrations; the keys live only in `.env` (`SLACK_WEBHOOK_URL`, `LINEAR_API_KEY`, optional `LINEAR_TEAM`).
+
 ## Speech to text: open source by default
 
 Sonar transcribes with **Whisper**, OpenAI's open-source speech model, running **on your own server** through Hugging Face's [transformers.js](https://github.com/huggingface/transformers.js). Free, no key, no third party hears the audio.
@@ -119,7 +125,7 @@ Sonar runs on SQLite in a Codespace today. Moving is two settings, not a rewrite
 
 ### Not built, on purpose
 
-User accounts (one shared creator password instead), billing, branching logic, integrations, exports, permanent audio storage. What's planned next, in order: [docs/ROADMAP.md](docs/ROADMAP.md).
+User accounts (one shared creator password instead), billing, branching logic, exports, permanent audio storage. What's planned next, in order: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## What to watch in user tests
 

@@ -229,11 +229,14 @@ export const insightService = {
   },
 
   /** Analyze with the configured model. Throws if the model is unavailable or returns junk. */
-  async analyzeLive(transcript: string, question = ""): Promise<Insight> {
+  async analyzeLive(transcript: string, question = "", themes: string[] = []): Promise<Insight> {
     if (aiConfig().provider === "mock") return mockAnalyze(transcript, question);
+    const library = themes.length
+      ? `\n\nExisting themes (use the exact name of one that fits; only make up a new one if none do):\n${themes.map((t) => `- ${t}`).join("\n")}`
+      : "";
     const out = await complete(
       INSIGHT_SYSTEM_PROMPT,
-      `Question asked:\n${question}\n\nTranscript of the spoken answer:\n"""\n${transcript}\n"""`,
+      `Question asked:\n${question}${library}\n\nTranscript of the spoken answer:\n"""\n${transcript}\n"""`,
     );
     const insight = coerceInsight(extractJson(out));
     if (!insight.executive_summary) throw new Error("model returned an empty summary");

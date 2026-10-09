@@ -49,10 +49,12 @@ export async function POST(req: Request) {
         const session = await getSession(sessionId);
         if (!session) return fail("We couldn't find that Sonar.", 404);
         if (session.questions.length === 0) return fail("Add a question first.", 400);
-        const count = Math.max(1, Math.min(20, Number(body.count) || 5));
+        const count = Math.max(1, Math.min(40, Number(body.count) || (session.cadence === "weekly" ? 16 : 5)));
         const now = Date.now();
+        // Weekly pulses get answers spread over the last four weeks, so there's something to compare.
+        const spread = session.cadence === "weekly" ? 28 * 86_400_000 : 6 * 3600_000;
         for (let n = 0; n < count; n++) {
-          const started = now - Math.round(Math.random() * 6 * 3600_000);
+          const started = now - Math.round(((n + Math.random()) / count) * spread);
           const respondentId = await startRespondent(session.id, new Date(started).toISOString());
           let t = started;
           for (const q of session.questions) {

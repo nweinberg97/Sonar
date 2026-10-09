@@ -160,7 +160,7 @@ export function SettingsView() {
           )}
 
           <div className="mt-6 divide-y divide-ink/8 border-y border-ink/8">
-            <Tool title="Generate sample responses" body="Adds realistic spoken answers, then runs them through insights.">
+            <Tool title="Generate sample responses" body="Adds realistic spoken answers, then runs them through insights. For a weekly pulse they're spread over the last four weeks; pick 20 to see week-to-week changes.">
               {sessions && sessions.length > 0 && <SessionPicker sessions={sessions} value={target} onChange={setTarget} />}
               <select
                 aria-label="How many respondents"

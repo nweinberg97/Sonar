@@ -7,10 +7,12 @@
  */
 import path from "node:path";
 import { BACKUP_DIR, backupNow, backupsSupported, isBackupName, listBackups } from "./backup";
+import { backfillThemes } from "./data";
 import { db } from "./db";
 
 // Parent tables first, so references are valid as rows go in.
-const TABLES = ["workspaces", "feedback_sessions", "questions", "respondents", "responses", "ai_insights", "syntheses", "share_items"] as const;
+// themes comes before ai_insights only logically (no foreign key); older backups simply have none and are backfilled.
+const TABLES = ["workspaces", "themes", "feedback_sessions", "questions", "respondents", "responses", "ai_insights", "syntheses", "share_items"] as const;
 
 type Row = Record<string, string | number | null>;
 
@@ -63,6 +65,7 @@ export async function restoreBackup(name: string): Promise<{ restored: string; s
     }
   });
 
+  await backfillThemes();
   return { restored: name, safetyCopy, responses: data.responses.length };
 }
 

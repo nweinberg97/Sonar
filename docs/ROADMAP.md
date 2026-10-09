@@ -102,7 +102,9 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
   - staying on Codespaces and only testing scheduled sessions.
 - Which context keys, if any, the embed may pass in.
 
-## Phase 3: Theme library with consistent naming
+## Phase 3: Theme library with consistent naming ✅ built
+
+**Built.** `themes` table (workspace-wide), `ai_insights.theme_id` (raw label kept in `primary_theme`). The model gets the active theme names and must reuse one if it fits; new ones arrive as "suggested". Library page: accept, rename (renaming to an existing name merges), merge, and every quote under a theme across Sonars. Existing answers are backfilled at startup and after a restore. Still open: splitting a long conversation into several themes.
 
 *Foundation for everything after it.*
 
@@ -144,7 +146,9 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 - Workspace-wide themes (recommended) or per-Sonar themes.
 - Whether to seed a starter list per template.
 
-## Phase 4: Human approval before anything leaves Sonar
+## Phase 4: Human approval before anything leaves Sonar ◐ partly built
+
+**Built (with Phase 6).** Every Slack/Linear send is an editable preview the creator must press Send on; one server function does all outbound calls; every attempt is recorded in `share_items`. **Not built yet:** testimonial quotes and the respondent's "OK to quote me" consent.
 
 **Goal.** Nothing is used publicly or sent to another tool without a person approving it.
 
@@ -170,7 +174,9 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 - Ask for quote consent: yes (recommended) or no.
 - Is "positioning" (the words customers use) a view you'll actually use yet?
 
-## Phase 5: Weekly pulse
+## Phase 5: Weekly pulse ✅ built
+
+**Built.** `feedback_sessions.cadence` (none/weekly) and `.timezone` (set from the creator's browser). Weeks are derived from answer timestamps (no scheduler). Insights shows a week picker, people/mood with deltas, top themes, and themes coming up more/less/new versus the previous visible week. Weeks under 3 people are hidden everywhere (including Slack drafts). "Send last week to Slack" appears when the latest finished week hasn't been sent. Not built: following the same person week to week (off by design).
 
 **Goal.** A repeat check-in that shows change over time.
 
@@ -208,7 +214,9 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 - Whether to follow the same person week to week.
 - The timezone that defines a "week".
 
-## Phase 6: Integrations (Slack first, then Linear)
+## Phase 6: Integrations (Slack first, then Linear) ✅ built
+
+**Built.** Slack via one incoming webhook (`SLACK_WEBHOOK_URL`); Linear via personal API key (`LINEAR_API_KEY`, optional `LINEAR_TEAM`). Settings → Integrations shows status and setup steps. Tested against stand-in Slack and Linear services, not the real ones.
 
 **Goal.** Approved items land where teams already work.
 

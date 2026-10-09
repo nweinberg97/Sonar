@@ -2,6 +2,7 @@ import { getSession, listShareItems } from "@/lib/data";
 import { fail, handle, json } from "@/lib/http";
 import {
   draftLinearIssue,
+  draftSlackPulse,
   draftSlackSummary,
   integrationStatus,
   send,
@@ -46,6 +47,11 @@ export async function POST(req: Request, ctx: Ctx) {
     if (!kind) return fail("Choose Slack or Linear.", 400);
     try {
       if (body.action === "draft") {
+        if (kind === "slack" && body.source === "pulse") {
+          const week = typeof body.text === "string" && /^\d{4}-W\d{2}$/.test(body.text) ? body.text : null;
+          if (!week) return fail("Pick a week.", 400);
+          return json({ draft: await draftSlackPulse(id, week, link(body.link)) });
+        }
         if (kind === "slack") return json({ draft: await draftSlackSummary(id, link(body.link)) });
         const source = (["action", "request", "friction"] as const).includes(body.source as LinearSource) ? (body.source as LinearSource) : null;
         if (!source) return fail("Pick what the issue is about.", 400);

@@ -10,6 +10,7 @@ const NAV = [
   { href: "/feedback", label: "Feedback", icon: "M4 6h12M4 10h12M4 14h7" },
   { href: "/responses", label: "Responses", icon: "M3 10h2l2-5 3 10 3-7 2 2h2" },
   { href: "/insights", label: "Insights", icon: "M10 3v2M10 15v2M3 10h2M15 10h2M10 7a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" },
+  { href: "/library", label: "Library", icon: "M4 4h3v12H4zM9 4h3v12H9zM14 5l2.5-.8 2.6 11.5-2.5.6z" },
   { href: "/settings", label: "Settings", icon: "M4 6h8M15 6h1M4 14h1M8 14h8M12 4v4M5 12v4" },
 ];
 

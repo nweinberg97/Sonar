@@ -10,6 +10,7 @@ import type {
   Segment,
   SessionDetail,
   SessionFormat,
+  Cadence,
   SessionStats,
   SessionStatus,
   SessionSummary,
@@ -29,7 +30,7 @@ const WORKSPACE_ID = "ws_default";
 
 const SUMMARY_SQL = `
   SELECT s.id, s.title, s.description, s.slug, s.status, s.template,
-         s.format, s.goal, s.target_seconds AS "targetSeconds",
+         s.format, s.goal, s.target_seconds AS "targetSeconds", s.cadence, s.timezone,
          s.created_at AS "createdAt", s.updated_at AS "updatedAt",
          (SELECT COUNT(*) FROM questions q WHERE q.session_id = s.id) AS "questionCount",
          (SELECT COUNT(DISTINCT r.session_response_id) FROM responses r WHERE r.session_id = s.id) AS "respondentCount",
@@ -122,6 +123,8 @@ export async function updateSession(
     format?: SessionFormat;
     goal?: string;
     targetSeconds?: number;
+    cadence?: Cadence;
+    timezone?: string;
   },
 ): Promise<void> {
   await db.transaction(async (d) => {
@@ -152,6 +155,12 @@ export async function updateSession(
     }
     if (patch.targetSeconds !== undefined) {
       await d.run(`UPDATE feedback_sessions SET target_seconds = ? WHERE id = ?`, patch.targetSeconds, id);
+    }
+    if (patch.cadence !== undefined) {
+      await d.run(`UPDATE feedback_sessions SET cadence = ? WHERE id = ?`, patch.cadence, id);
+    }
+    if (patch.timezone !== undefined) {
+      await d.run(`UPDATE feedback_sessions SET timezone = ? WHERE id = ?`, patch.timezone, id);
     }
     if (patch.questions) {
       const existing = await d.all<{ id: string }>(`SELECT id FROM questions WHERE session_id = ?`, id);
@@ -244,14 +253,16 @@ export async function createResponse(input: {
 
 /** source: which engine produced it, e.g. "ollama:llama3.2:3b", "builtin", "seed". */
 export async function saveInsight(responseId: string, insight: Insight, at = nowIso(), source = "builtin"): Promise<void> {
+  // Seeded data defines the starting library; anything new the model comes up with is a suggestion.
+  const themeId = await resolveTheme(db, insight.primary_theme, source === "seed" ? "active" : "suggested");
   await db.run(`DELETE FROM ai_insights WHERE response_id = ?`, responseId);
   await db.run(
     `INSERT INTO ai_insights (id, response_id, sentiment_score, sentiment_label, primary_theme, business_inefficiency,
-                              feature_requests, key_points, executive_summary, source, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                              feature_requests, key_points, executive_summary, source, theme_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     newId(), responseId, insight.sentiment_score, insight.sentiment_label, insight.primary_theme,
     insight.business_inefficiency, JSON.stringify(insight.feature_requests), JSON.stringify(insight.key_points),
-    insight.executive_summary, source.slice(0, 80), at,
+    insight.executive_summary, source.slice(0, 80), themeId, at,
   );
 }
 
@@ -317,13 +328,14 @@ export async function listResponses(opts: { sessionId?: string; limit?: number }
     `SELECT r.id, r.session_id AS "sessionId", s.title AS "sessionTitle", r.question_id AS "questionId",
             q.text AS "questionText", q.position AS "questionPosition", r.session_response_id AS "sessionResponseId",
             r.transcript, r.input_mode AS "inputMode", r.duration_ms AS "durationMs", r.created_at AS "createdAt", r.segments,
-            i.sentiment_score AS "iScore", i.sentiment_label AS "iLabel", i.primary_theme AS "iTheme",
+            i.sentiment_score AS "iScore", i.sentiment_label AS "iLabel", COALESCE(th.name, i.primary_theme) AS "iTheme",
             i.business_inefficiency AS "iIneff", i.feature_requests AS "iRequests", i.key_points AS "iPoints",
             i.executive_summary AS "iSummary"
      FROM responses r
      JOIN feedback_sessions s ON s.id = r.session_id
      JOIN questions q ON q.id = r.question_id
      LEFT JOIN ai_insights i ON i.response_id = r.id
+     LEFT JOIN themes th ON th.id = i.theme_id
      ${where}
      ORDER BY r.created_at DESC, q.position ASC
      LIMIT ${Math.min(Math.max(opts.limit ?? 500, 1), 2000)}`,
@@ -421,7 +433,7 @@ export async function clearResponses(sessionId?: string): Promise<void> {
 /** Delete every Sonar, question and response. Leaves an empty workspace. */
 export async function wipeAll(): Promise<void> {
   await db.transaction(async (d) => {
-    for (const t of ["share_items", "ai_insights", "responses", "respondents", "syntheses", "questions", "feedback_sessions", "workspaces"]) {
+    for (const t of ["share_items", "themes", "ai_insights", "responses", "respondents", "syntheses", "questions", "feedback_sessions", "workspaces"]) {
       await d.run(`DELETE FROM ${t}`);
     }
   });
@@ -519,4 +531,166 @@ export async function saveShareItem(item: ShareItem): Promise<void> {
       item.externalUrl, item.error, item.createdAt, item.sentAt,
     );
   });
+}
+
+// ---------------------------------------------------------------- theme library
+
+/** "Hands-on Workshops!" and "hands on workshop" are the same theme. */
+export function themeKey(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => (w.length > 3 && w.endsWith("s") && !w.endsWith("ss") ? w.slice(0, -1) : w))
+    .join(" ");
+}
+
+const NOT_A_THEME = new Set(["unclear response", ""]);
+
+/** Find the library theme for a raw label (following merges), or add it. */
+async function resolveTheme(d: Driver, raw: string, statusIfNew: "active" | "suggested"): Promise<string | null> {
+  const name = raw.trim().slice(0, 60);
+  const key = themeKey(name);
+  if (NOT_A_THEME.has(key)) return null;
+  let [t] = await d.all<{ id: string; status: string; mergedIntoId: string | null }>(
+    `SELECT id, status, merged_into_id AS "mergedIntoId" FROM themes WHERE workspace_id = ? AND key = ?`,
+    WORKSPACE_ID,
+    key,
+  );
+  for (let hops = 0; t?.status === "merged" && t.mergedIntoId && hops < 10; hops++) {
+    [t] = await d.all<{ id: string; status: string; mergedIntoId: string | null }>(
+      `SELECT id, status, merged_into_id AS "mergedIntoId" FROM themes WHERE id = ?`,
+      t.mergedIntoId,
+    );
+  }
+  if (t) return t.id;
+  await ensureWorkspace(d);
+  const id = newId();
+  await d.run(
+    `INSERT INTO themes (id, workspace_id, name, key, status, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (workspace_id, key) DO NOTHING`,
+    id, WORKSPACE_ID, name, key, statusIfNew, nowIso(),
+  );
+  const [row] = await d.all<{ id: string }>(`SELECT id FROM themes WHERE workspace_id = ? AND key = ?`, WORKSPACE_ID, key);
+  return row?.id ?? null;
+}
+
+/**
+ * Give every analysed answer a library theme. Runs at startup and after a
+ * restore, so databases from before the library existed fill it in. Existing
+ * labels become active themes.
+ */
+export async function backfillThemes(): Promise<number> {
+  const rows = await db.all<{ id: string; raw: string }>(
+    `SELECT id, primary_theme AS raw FROM ai_insights WHERE theme_id IS NULL LIMIT 5000`,
+  );
+  let n = 0;
+  for (const r of rows) {
+    const themeId = await resolveTheme(db, r.raw, "active");
+    if (!themeId) continue;
+    await db.run(`UPDATE ai_insights SET theme_id = ? WHERE id = ?`, themeId, r.id);
+    n += 1;
+  }
+  return n;
+}
+
+/** Names the model should reuse, most used first. */
+export async function activeThemeNames(limit = 40): Promise<string[]> {
+  const rows = await db.all<{ name: string }>(
+    `SELECT t.name, COUNT(i.id) AS uses FROM themes t LEFT JOIN ai_insights i ON i.theme_id = t.id
+     WHERE t.workspace_id = ? AND t.status = 'active'
+     GROUP BY t.id, t.name ORDER BY uses DESC, t.name ASC LIMIT ${Math.min(Math.max(limit, 1), 200)}`,
+    WORKSPACE_ID,
+  );
+  return rows.map((r) => r.name);
+}
+
+export interface ThemeSummary {
+  id: string;
+  name: string;
+  status: "active" | "suggested";
+  mentions: number;
+  sonars: number;
+  avgSentiment: number | null;
+  lastAt: string | null;
+}
+
+export async function listThemes(): Promise<ThemeSummary[]> {
+  const rows = await db.all<ThemeSummary>(
+    `SELECT t.id, t.name, t.status, COUNT(i.id) AS mentions, COUNT(DISTINCT r.session_id) AS sonars,
+            AVG(i.sentiment_score) AS "avgSentiment", MAX(r.created_at) AS "lastAt"
+     FROM themes t
+     LEFT JOIN ai_insights i ON i.theme_id = t.id
+     LEFT JOIN responses r ON r.id = i.response_id
+     WHERE t.workspace_id = ? AND t.status <> 'merged'
+     GROUP BY t.id, t.name, t.status
+     ORDER BY mentions DESC, t.name ASC`,
+    WORKSPACE_ID,
+  );
+  return rows.map((r) => ({
+    ...r,
+    mentions: Number(r.mentions),
+    sonars: Number(r.sonars),
+    avgSentiment: r.avgSentiment === null || r.avgSentiment === undefined ? null : Math.round(Number(r.avgSentiment) * 10) / 10,
+  }));
+}
+
+export async function themeQuotes(themeId: string, limit = 50) {
+  return db.all<{ responseId: string; transcript: string; sentiment: number; sessionId: string; sessionTitle: string; createdAt: string }>(
+    `SELECT r.id AS "responseId", r.transcript, i.sentiment_score AS sentiment, s.id AS "sessionId", s.title AS "sessionTitle",
+            r.created_at AS "createdAt"
+     FROM ai_insights i JOIN responses r ON r.id = i.response_id JOIN feedback_sessions s ON s.id = r.session_id
+     WHERE i.theme_id = ? ORDER BY r.created_at DESC LIMIT ${Math.min(Math.max(limit, 1), 500)}`,
+    themeId,
+  );
+}
+
+async function liveTheme(d: Driver, id: string) {
+  const [t] = await d.all<{ id: string; name: string; status: string }>(
+    `SELECT id, name, status FROM themes WHERE id = ? AND workspace_id = ? AND status <> 'merged'`,
+    id,
+    WORKSPACE_ID,
+  );
+  return t ?? null;
+}
+
+/** Fold one theme into another: its answers move over, and its name keeps routing there. */
+export async function mergeTheme(fromId: string, intoId: string): Promise<void> {
+  if (fromId === intoId) return;
+  await db.transaction(async (d) => {
+    const from = await liveTheme(d, fromId);
+    const into = await liveTheme(d, intoId);
+    if (!from || !into) throw new Error("theme not found");
+    await d.run(`UPDATE ai_insights SET theme_id = ? WHERE theme_id = ?`, intoId, fromId);
+    await d.run(`UPDATE themes SET merged_into_id = ? WHERE merged_into_id = ?`, intoId, fromId);
+    await d.run(`UPDATE themes SET status = 'merged', merged_into_id = ? WHERE id = ?`, intoId, fromId);
+    if (into.status === "suggested") await d.run(`UPDATE themes SET status = 'active' WHERE id = ?`, intoId);
+  });
+}
+
+/** Rename. If another theme already has that name, the two are merged. Returns the surviving id. */
+export async function renameTheme(id: string, name: string): Promise<string> {
+  const key = themeKey(name);
+  if (NOT_A_THEME.has(key)) throw new Error("empty name");
+  const [clash] = await db.all<{ id: string; status: string; mergedIntoId: string | null }>(
+    `SELECT id, status, merged_into_id AS "mergedIntoId" FROM themes WHERE workspace_id = ? AND key = ?`,
+    WORKSPACE_ID,
+    key,
+  );
+  if (clash && clash.id !== id) {
+    if (clash.status === "merged") {
+      // The name belonged to a theme merged away earlier: reuse it.
+      await db.run(`UPDATE themes SET key = ? WHERE id = ?`, `${key} (old ${clash.id.slice(0, 6)})`, clash.id);
+    } else {
+      await mergeTheme(id, clash.id);
+      return clash.id;
+    }
+  }
+  await db.run(`UPDATE themes SET name = ?, key = ?, status = 'active' WHERE id = ?`, name.trim().slice(0, 60), key, id);
+  return id;
+}
+
+export async function acceptTheme(id: string): Promise<void> {
+  await db.run(`UPDATE themes SET status = 'active' WHERE id = ? AND status = 'suggested'`, id);
 }

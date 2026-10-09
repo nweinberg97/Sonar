@@ -31,6 +31,7 @@ sentiment_label
 primary_theme
 - The single most important idea in the answer, as a short noun phrase of 1-3 words in Title-ish case (e.g. "Onboarding", "Event scheduling", "Hands-on workshops", "Pricing").
 - Prefer general, reusable theme names over one-off phrasing so themes can be counted across many responses.
+- If a list of existing themes is given, use the exact name of one that fits the answer. Only create a new theme when none of them fit.
 
 business_inefficiency
 - One sentence describing a genuine inefficiency, bottleneck, friction point, wasted time or broken process the person experienced.

@@ -19,7 +19,7 @@ export interface ShareHistoryItem {
 
 export interface ShareRequest {
   kind: "slack" | "linear";
-  source?: "action" | "request" | "friction";
+  source?: "action" | "request" | "friction" | "pulse";
   text?: string;
 }
 
@@ -102,7 +102,7 @@ export function ShareComposer({
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="font-display text-xl font-semibold tracking-tight">
-              {request.kind === "slack" ? "Send summary to Slack" : "Create a Linear issue"}
+              {request.kind === "linear" ? "Create a Linear issue" : request.source === "pulse" ? "Send weekly pulse to Slack" : "Send summary to Slack"}
             </h2>
             <p className="mt-1 text-sm text-ink/55">
               {state === "sent" ? "Sent." : `Nothing is sent until you press Send. Edit anything you like.`}

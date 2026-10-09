@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, displayUrl, shareUrl } from "@/lib/client";
-import type { SessionDetail, SessionFormat, SessionStatus } from "@/lib/types";
+import type { Cadence, SessionDetail, SessionFormat, SessionStatus } from "@/lib/types";
 import { btn, CopyButton, ErrorNote, Loading, SessionTabs, StatusChip } from "./ui";
 
 interface Draft {
@@ -30,6 +30,7 @@ export function Builder() {
   const [format, setFormat] = useState<SessionFormat>("questions");
   const [goal, setGoal] = useState("");
   const [targetSeconds, setTargetSeconds] = useState(60);
+  const [cadence, setCadence] = useState<Cadence>("none");
   const [save, setSave] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState("");
   const [previewKey, setPreviewKey] = useState(0);
@@ -49,6 +50,7 @@ export function Builder() {
     setFormat(s.format ?? "questions");
     setGoal(s.goal ?? "");
     setTargetSeconds(s.targetSeconds ?? 60);
+    setCadence(s.cadence ?? "none");
   }, []);
 
   useEffect(() => {
@@ -75,7 +77,17 @@ export function Builder() {
     try {
       const { session: s } = await api<{ session: SessionDetail }>(`/api/sessions/${id}`, {
         method: "PATCH",
-        json: { title, description, format, goal, targetSeconds, questions: filled.map((q) => ({ id: q.id, text: q.text })) },
+        json: {
+          title,
+          description,
+          format,
+          goal,
+          targetSeconds,
+          cadence,
+          // Weeks for a pulse run Monday–Sunday in the creator's own time zone.
+          ...(cadence === "weekly" ? { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" } : {}),
+          questions: filled.map((q) => ({ id: q.id, text: q.text })),
+        },
       });
       // Only clear the dirty flag if nothing changed while this save was in flight.
       if (version.current === savingVersion) dirty.current = false;
@@ -93,7 +105,7 @@ export function Builder() {
       setSave("error");
       setSaveError((e as Error).message);
     }
-  }, [id, title, description, questions, format, goal, targetSeconds]);
+  }, [id, title, description, questions, format, goal, targetSeconds, cadence]);
 
   // Autosave shortly after the last edit.
   useEffect(() => {
@@ -104,7 +116,7 @@ export function Builder() {
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
     };
-  }, [title, description, questions, format, goal, targetSeconds, persist]);
+  }, [title, description, questions, format, goal, targetSeconds, cadence, persist]);
 
   useEffect(() => {
     if (!focusKey.current) return;
@@ -277,6 +289,8 @@ export function Builder() {
           </p>
           </>
           )}
+
+          <CadencePicker value={cadence} onChange={(c) => edit(() => setCadence(c))} />
 
           <div className="mt-16 border-t border-ink/8 pt-6">
             <button onClick={remove} className="text-sm text-ink/45 hover:text-ink">
@@ -514,5 +528,39 @@ function ConversationFields({
         </span>
       </label>
     </div>
+  );
+}
+
+function CadencePicker({ value, onChange }: { value: Cadence; onChange: (c: Cadence) => void }) {
+  const options: { id: Cadence; label: string; hint: string }[] = [
+    { id: "none", label: "One-off", hint: "Collect feedback once." },
+    { id: "weekly", label: "Weekly pulse", hint: "Same link every week. Insights compares each week with the last." },
+  ];
+  return (
+    <fieldset className="mt-12">
+      <legend className="text-sm font-medium text-ink/55">Repeat</legend>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {options.map((o) => (
+          <label
+            key={o.id}
+            className={`flex cursor-pointer gap-3 rounded-2xl border px-4 py-3 transition ${
+              value === o.id ? "border-blue bg-blue/[0.04]" : "border-ink/10 hover:border-ink/30"
+            }`}
+          >
+            <input type="radio" name="cadence" value={o.id} checked={value === o.id} onChange={() => onChange(o.id)} className="mt-1.5" />
+            <span>
+              <span className="block font-semibold">{o.label}</span>
+              <span className="block text-sm text-ink/55">{o.hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {value === "weekly" && (
+        <p className="mt-2 text-sm text-ink/45">
+          Weeks run Monday to Sunday in your time zone. A week with fewer than 3 people stays hidden so no one can be identified.
+          One Sonar per team works well.
+        </p>
+      )}
+    </fieldset>
   );
 }

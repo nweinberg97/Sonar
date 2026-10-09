@@ -43,6 +43,12 @@ export function formatDuration(ms: number | null): string {
   return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
 }
 
+/** timeAgo for use mid-sentence: "5m ago", "just now", but dates keep their capital ("Sep 22"). */
+export function timeAgoInline(iso: string | null): string {
+  const t = timeAgo(iso);
+  return /^[A-Z][a-z]{2} \d/.test(t) ? t : t.toLowerCase();
+}
+
 export function timeAgo(iso: string | null): string {
   if (!iso) return "No responses yet";
   const diff = Date.now() - Date.parse(iso);

@@ -1,6 +1,6 @@
 import { deleteSession, getSession, updateSession } from "@/lib/data";
 import { fail, handle, json } from "@/lib/http";
-import { LIMITS, parseFormat, parseGoal, parseQuestions, parseStatus, parseTargetSeconds } from "@/lib/session-input";
+import { LIMITS, parseCadence, parseFormat, parseGoal, parseQuestions, parseStatus, parseTargetSeconds, parseTimezone } from "@/lib/session-input";
 import { cleanText, readJson, requireId } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +42,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
       format,
       goal: body.goal === undefined ? undefined : parseGoal(body.goal),
       targetSeconds: body.targetSeconds === undefined ? undefined : parseTargetSeconds(body.targetSeconds),
+      cadence: body.cadence === undefined ? undefined : parseCadence(body.cadence),
+      timezone: body.timezone === undefined ? undefined : parseTimezone(body.timezone),
     });
     return json({ session: await getSession(id) });
   });

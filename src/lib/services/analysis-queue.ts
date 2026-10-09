@@ -10,7 +10,7 @@
  *   failed tries on the same answer it uses the built-in extractor for that one,
  *   so results never go missing.
  */
-import { listPendingAnalysis, saveInsight } from "../data";
+import { activeThemeNames, listPendingAnalysis, saveInsight } from "../data";
 import { insightService } from "./insights";
 import { aiConfig, ollamaHealth } from "./config";
 import { liveBusy } from "./live-state";
@@ -33,6 +33,8 @@ async function drain() {
     if (Date.now() < backoffUntil) return;
     const batch = await listPendingAnalysis(10);
     if (batch.length === 0) return;
+    // The model reuses library names so the same idea is counted as one theme.
+    const themes = await activeThemeNames();
     for (const item of batch) {
       // Someone is mid-conversation: leave the model free for their follow-ups.
       // The timer in startAnalysisQueue picks this back up a few seconds later.
@@ -46,7 +48,7 @@ async function drain() {
         continue;
       }
       try {
-        const insight = await insightService.analyzeLive(item.transcript, item.questionText);
+        const insight = await insightService.analyzeLive(item.transcript, item.questionText, themes);
         await saveInsight(item.id, insight, undefined, insightService.engine);
         failures.delete(item.id);
         lastError = null;

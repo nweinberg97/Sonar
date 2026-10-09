@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api, plural, shareUrl, timeAgo } from "@/lib/client";
+import { api, plural, shareUrl, timeAgoInline } from "@/lib/client";
 import type { SessionStats, Synthesis, ThemeCount } from "@/lib/types";
 import { btn, CopyButton, EmptySignal, ErrorNote, PageHeader, SessionPicker, SessionTabs } from "./ui";
+import { PulsePanel } from "./PulsePanel";
 import { ShareComposer, type ShareHistoryItem, type ShareRequest } from "./ShareComposer";
 import { useSelectedSession } from "./useSelectedSession";
 
@@ -14,6 +15,7 @@ export function InsightsView() {
   const [loadError, setLoadError] = useState("");
   const [share, setShare] = useState<{ integrations: { slack: boolean; linear: boolean }; history: ShareHistoryItem[] } | null>(null);
   const [composing, setComposing] = useState<ShareRequest | null>(null);
+  const [shareVersion, setShareVersion] = useState(0);
 
   const loadShare = (id: string) =>
     api<{ integrations: { slack: boolean; linear: boolean }; history: ShareHistoryItem[] }>(`/api/sessions/${id}/share`)
@@ -98,7 +100,10 @@ export function InsightsView() {
           request={composing}
           connected={Boolean(share?.integrations[composing.kind])}
           onClose={() => setComposing(null)}
-          onSent={() => void loadShare(selected.id)}
+          onSent={() => {
+            void loadShare(selected.id);
+            setShareVersion((v) => v + 1);
+          }}
         />
       )}
 
@@ -131,6 +136,14 @@ export function InsightsView() {
         </p>
       )}
 
+      {s && s.responseCount > 0 && selected.cadence === "weekly" && (
+        <PulsePanel
+          sessionId={selected.id}
+          refreshKey={shareVersion + s.responseCount}
+          onSendWeek={(week) => setComposing({ kind: "slack", source: "pulse", text: week })}
+        />
+      )}
+
       {s && s.responseCount > 0 && (
         <div className="grid gap-x-16 gap-y-14 lg:grid-cols-[minmax(0,1fr)_17rem]">
           <div className="space-y-16">
@@ -140,7 +153,7 @@ export function InsightsView() {
                   What did we hear?
                 </h2>
                 <span className="flex items-center gap-3">
-                  {lastSlack?.sentAt && <span className="text-sm text-ink/40">Sent to Slack {timeAgo(lastSlack.sentAt).toLowerCase()}</span>}
+                  {lastSlack?.sentAt && <span className="text-sm text-ink/40">Sent to Slack {timeAgoInline(lastSlack.sentAt)}</span>}
                   <button onClick={() => setComposing({ kind: "slack" })} className={btn.ghost}>
                     Send to Slack
                   </button>

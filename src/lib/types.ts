@@ -2,6 +2,7 @@ export type SessionStatus = "draft" | "published" | "closed";
 export type SentimentLabel = "positive" | "mixed" | "neutral" | "negative";
 export type InputMode = "voice" | "text";
 export type SessionFormat = "questions" | "conversation";
+export type Cadence = "none" | "weekly";
 
 /** One piece of a conversation answer: something said, or a follow-up shown. */
 export type Segment =
@@ -24,6 +25,8 @@ export interface SessionSummary {
   format: SessionFormat;
   goal: string;
   targetSeconds: number;
+  cadence: Cadence;
+  timezone: string;
   createdAt: string;
   updatedAt: string;
   questionCount: number;
