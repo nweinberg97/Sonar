@@ -90,6 +90,8 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 - Creator pages refuse to be framed.
 - `/s/` links behave exactly as before.
 
+**Decision (Oct 2026): stay on Codespaces for now.** No users yet, so no always-on server. Phase 2 waits until someone wants Sonar embedded on their site; then move to a small always-on server (option 1 below).
+
 **Decisions before starting.**
 
 - **Hosting (blocking).** A real embed needs a server that is always on, and Codespaces sleeps. The options:
