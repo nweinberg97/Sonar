@@ -92,6 +92,8 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 
 **Decision (Oct 2026): stay on Codespaces for now.** No users yet, so no always-on server. Phase 2 waits until someone wants Sonar embedded on their site; then move to a small always-on server (option 1 below).
 
+**Ready for the move.** Switching to Postgres is one setting (`DATABASE_URL`), tested against a real Postgres 16; the move checklist is in the README ("When you're ready to move"). One limit to remember: Sonar must run as a single always-on server (not serverless, not several copies), because live conversations and queues are held in memory.
+
 **Decisions before starting.**
 
 - **Hosting (blocking).** A real embed needs a server that is always on, and Codespaces sleeps. The options:

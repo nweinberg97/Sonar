@@ -244,13 +244,15 @@ interface BackupFile {
 function Backups() {
   const [list, setList] = useState<BackupFile[] | null>(null);
   const [undo, setUndo] = useState<string | null>(null);
+  const [supported, setSupported] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
   const load = () =>
-    api<{ backups: BackupFile[]; undo: string | null }>("/api/backups")
+    api<{ backups: BackupFile[]; undo: string | null; supported?: boolean }>("/api/backups")
       .then((d) => {
         setList(d.backups);
         setUndo(d.undo);
+        setSupported(d.supported !== false);
       })
       .catch(() => setList([]));
   useEffect(() => {
@@ -283,6 +285,20 @@ function Backups() {
           : "Manual";
   const when = (iso: string) =>
     new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+  if (!supported) {
+    return (
+      <section className="mb-14" aria-labelledby="backups">
+        <h2 id="backups" className="font-display text-xl font-semibold tracking-tight">
+          Backups
+        </h2>
+        <p className="mt-2 max-w-2xl text-ink/60">
+          Sonar is using a Postgres database, so backups are handled by your database provider (in Supabase: Database →
+          Backups). Sonar&rsquo;s built-in snapshots and Undo only work with the local SQLite database.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="mb-14" aria-labelledby="backups">

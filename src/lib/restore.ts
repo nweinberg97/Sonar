@@ -6,7 +6,7 @@
  * so every restore can itself be undone.
  */
 import path from "node:path";
-import { BACKUP_DIR, backupNow, isBackupName, listBackups } from "./backup";
+import { BACKUP_DIR, backupNow, backupsSupported, isBackupName, listBackups } from "./backup";
 import { db } from "./db";
 
 // Parent tables first, so references are valid as rows go in.
@@ -40,6 +40,7 @@ async function liveColumns(table: string): Promise<Set<string>> {
 }
 
 export async function restoreBackup(name: string): Promise<{ restored: string; safetyCopy: string | null; responses: number }> {
+  if (!backupsSupported()) throw new Error("Restoring snapshots only works with the built-in SQLite database. Use your database provider's backups.");
   if (!isBackupName(name) || !listBackups().some((b) => b.name === name)) throw new Error("Backup not found.");
   const data = await readBackup(path.join(BACKUP_DIR, name));
 

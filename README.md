@@ -91,15 +91,21 @@ Creator
 | `src/lib/seed-data.ts` | The Northline Community demo dataset |
 | `prisma/schema.prisma` | Schema: workspaces, feedback sessions, questions, respondents, responses, AI insights, syntheses |
 
-### Moving off SQLite later (Supabase / Postgres)
+### When you're ready to move (more users, always on)
 
-Every query lives in `src/lib/data.ts` and goes through the tiny driver in `src/lib/db.ts`, which already rewrites placeholders for Postgres. To switch:
+Sonar runs on SQLite in a Codespace today. Moving is two settings, not a rewrite.
 
-1. In `prisma/schema.prisma`, change `provider = "sqlite"` to `provider = "postgresql"`.
-2. Set `DATABASE_URL` to your Postgres connection string (Supabase: Project settings → Database).
-3. Run `npx prisma db push`, then `npm run db:seed` if you want the demo data.
+**1. Database: Postgres (e.g. Supabase).** Set `DATABASE_URL` to the Postgres connection string and restart. That's it: Sonar writes a Postgres copy of the schema (`prisma/.postgres/`, not committed), prepares the database client, and creates the tables. For Supabase, use the direct or session connection string (port 5432).
 
-Nothing else in the app changes: the SQL sticks to syntax both databases share (quoted column aliases, `ON CONFLICT`, plain aggregates).
+- A Postgres database starts empty; it's never filled with demo data automatically. `npm run db:seed` loads the demo, and only into an empty database.
+- Backups come from your provider (Supabase: Database → Backups). Sonar's built-in snapshots and Undo are SQLite-only, and Settings says so.
+- Every query is plain SQL that runs on both. The whole test suite (respondent flow, conversations, creator workspace, testing tools) has been run against a real Postgres 16.
+- Answers already in the SQLite file aren't copied over automatically.
+
+**2. Server: one always-on machine.** Any host that runs Node 22 and keeps a process running (a small VPS, Railway, Render, Fly). Give it at least 4 GB of memory (8 GB is comfortable) for Whisper and Llama, then `npm install`, `bash scripts/setup-ollama.sh`, and `npm run serve`, with `SONAR_PASSWORD` and `DATABASE_URL` set in its environment.
+
+- **Run exactly one copy of Sonar.** Live conversations, the transcription and analysis queues, and rate limits live in that server's memory. Serverless hosts (like Vercel) or several copies behind a load balancer would break conversations. Outgrowing one server is the point to move that state into a shared store.
+- Phones need https, which these hosts provide.
 
 ### Privacy and security
 

@@ -1,4 +1,4 @@
-import { backupNow, listBackups } from "@/lib/backup";
+import { backupNow, backupsSupported, listBackups } from "@/lib/backup";
 import { fail, handle, json } from "@/lib/http";
 import { latestUndoPoint, restoreBackup } from "@/lib/restore";
 import { readJson } from "@/lib/validate";
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 
 /** List snapshots (creator only: protected by the password in middleware). */
 export async function GET() {
-  return handle(async () => json({ backups: listBackups(), undo: latestUndoPoint() }));
+  return handle(async () => json({ backups: listBackups(), undo: latestUndoPoint(), supported: backupsSupported() }));
 }
 
 /** { action: "create" } take a snapshot · { action: "restore", name } · { action: "undo" } */

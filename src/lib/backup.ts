@@ -28,12 +28,17 @@ function isSqlite(): boolean {
   return !/^postgres(ql)?:/i.test(process.env.DATABASE_URL ?? "");
 }
 
+/** Built-in snapshots and undo only work with SQLite. On Postgres, the provider (e.g. Supabase) keeps backups. */
+export function backupsSupported(): boolean {
+  return isSqlite();
+}
+
 export function isBackupName(name: unknown): name is string {
   return typeof name === "string" && NAME.test(name);
 }
 
 export function listBackups(): BackupFile[] {
-  if (!existsSync(BACKUP_DIR)) return [];
+  if (!isSqlite() || !existsSync(BACKUP_DIR)) return [];
   return readdirSync(BACKUP_DIR)
     .filter((n) => NAME.test(n))
     .map((name) => {

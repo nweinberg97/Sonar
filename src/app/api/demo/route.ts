@@ -20,6 +20,8 @@ import { isId, readJson, requireId } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
+const backedUp = (name: string | null) => (name ? " A backup of what was there is in Backups." : "");
+
 export async function POST(req: Request) {
   return handle(async () => {
     if (!demoToolsEnabled()) return fail("Testing tools are turned off on this server.", 403);
@@ -27,20 +29,20 @@ export async function POST(req: Request) {
 
     switch (body.action) {
       case "reset": {
-        await backupNow("before-reset");
+        const saved = await backupNow("before-reset");
         await resetAndSeed();
-        return json({ ok: true, message: "Workspace reset to the demo data. A backup of what was there is in Backups." });
+        return json({ ok: true, message: `Workspace reset to the demo data.${backedUp(saved)}` });
       }
       case "empty": {
-        await backupNow("before-delete");
+        const saved = await backupNow("before-delete");
         await wipeAll();
-        return json({ ok: true, message: "Everything deleted. A backup of what was there is in Backups." });
+        return json({ ok: true, message: `Everything deleted.${backedUp(saved)}` });
       }
       case "clear": {
         const sessionId = isId(body.sessionId) ? body.sessionId : undefined;
-        await backupNow("before-clear");
+        const saved = await backupNow("before-clear");
         await clearResponses(sessionId);
-        return json({ ok: true, message: "Responses cleared. A backup of what was there is in Backups." });
+        return json({ ok: true, message: `Responses cleared.${backedUp(saved)}` });
       }
       case "generate": {
         const sessionId = requireId(body.sessionId, "Sonar");
