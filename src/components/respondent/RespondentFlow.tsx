@@ -24,7 +24,19 @@ type Phase = "loading" | "unavailable" | "intro" | "asking" | "finishing" | "don
 type Step = "idle" | "recording" | "sent" | "typing";
 
 
-export function RespondentFlow({ slug, preview = false }: { slug: string; preview?: boolean }) {
+export function RespondentFlow({
+  slug,
+  preview = false,
+  embed = false,
+  hostOrigin = null,
+}: {
+  slug: string;
+  preview?: boolean;
+  /** Inside another site's page (the Feedback button): no intro, talks to the page via postMessage. */
+  embed?: boolean;
+  /** The embedding page's origin. Messages go only there, and are accepted only from there. */
+  hostOrigin?: string | null;
+}) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [session, setSession] = useState<PublicSession | null>(null);
   const [unavailable, setUnavailable] = useState("");
@@ -35,6 +47,8 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
   const [saveTrouble, setSaveTrouble] = useState(false);
   const [starting, setStarting] = useState(false);
   const [quoteOk, setQuoteOk] = useState<"ask" | "saving" | "yes">("ask");
+  const [convRecording, setConvRecording] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
 
   const respondentRef = useRef<string | null>(null);
   const pendingRef = useRef<Promise<boolean>[]>([]);
@@ -90,7 +104,10 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
     setStarting(true);
     if (!preview) {
       try {
-        const { respondentId } = await api<{ respondentId: string }>(`/api/public/${slug}/start`, { method: "POST" });
+        const { respondentId } = await api<{ respondentId: string }>(`/api/public/${slug}/start`, {
+          method: "POST",
+          json: { source: embed ? "embed" : "link" },
+        });
         respondentRef.current = respondentId;
       } catch (err) {
         setUnavailable((err as Error).message);
@@ -188,6 +205,68 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
     setSaveTrouble(false);
     setPhase("intro");
   };
+
+  // ---------------------------------------------------------------- embed bridge
+
+  const recording = rec.status === "recording" || convRecording;
+  const tellHost = useCallback(
+    (type: "sonar:ready" | "sonar:close" | "sonar:done" | "sonar:tone", extra: Record<string, unknown> = {}) => {
+      if (embed && hostOrigin && window.parent !== window) window.parent.postMessage({ type, ...extra }, hostOrigin);
+    },
+    [embed, hostOrigin],
+  );
+  // Say hello as soon as this screen runs, so the page knows the frame wasn't blocked.
+  useEffect(() => {
+    tellHost("sonar:ready");
+  }, [tellHost]);
+  // Let the panel's header match the screen (dark while recording).
+  useEffect(() => {
+    tellHost("sonar:tone", { dark: recording });
+  }, [recording, tellHost]);
+  // Someone tapped the Feedback button, so there's no intro to click through.
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!embed || phase !== "intro" || autoStarted.current) return;
+    autoStarted.current = true;
+    void begin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embed, phase]);
+  useEffect(() => {
+    if (phase === "done") tellHost("sonar:done");
+  }, [phase, tellHost]);
+  /** Close asked for (the host's × or Esc): check first if they're mid-answer. */
+  const requestClose = useCallback(() => {
+    if (recording) setConfirmClose(true);
+    else tellHost("sonar:close");
+  }, [recording, tellHost]);
+  useEffect(() => {
+    if (!embed) return;
+    const onMessage = (e: MessageEvent) => {
+      if (!hostOrigin || e.origin !== hostOrigin || e.source !== window.parent) return;
+      if (e.data && typeof e.data === "object" && (e.data as { type?: string }).type === "sonar:request-close") requestClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") requestClose();
+    };
+    window.addEventListener("message", onMessage);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [embed, hostOrigin, requestClose]);
+
+  const guard = confirmClose ? (
+    <CloseGuard
+      conversation={session?.format === "conversation"}
+      onKeep={() => setConfirmClose(false)}
+      onClose={() => {
+        setConfirmClose(false);
+        rec.cancel();
+        tellHost("sonar:close");
+      }}
+    />
+  ) : null;
 
   // ---------------------------------------------------------------- render
 
@@ -306,6 +385,11 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
                   Run the preview again
                 </button>
               )}
+              {embed && hostOrigin && (
+                <button onClick={() => tellHost("sonar:close")} className="mt-8 h-12 rounded-full bg-ink px-6 font-semibold text-white">
+                  Close
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -324,6 +408,8 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
         preview={preview}
         track={(p) => pendingRef.current.push(p)}
         onDone={() => void advance()}
+        onRecordingChange={setConvRecording}
+        overlay={guard}
       />
     );
   }
@@ -336,6 +422,7 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
       className={`min-h-[100dvh] transition-colors duration-300 ${dark ? "on-dark bg-ink text-white" : "bg-cloud text-ink"}`}
       style={{ ["--level" as string]: 0 }}
     >
+      {guard}
       <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col px-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-5">
         {preview && <PreviewBadge dark={dark} />}
         {/* Progress */}
@@ -496,6 +583,32 @@ export function RespondentFlow({ slug, preview = false }: { slug: string; previe
               </button>
             </form>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** "Stop now?" when the Feedback panel is closed mid-answer. */
+function CloseGuard({ conversation, onKeep, onClose }: { conversation: boolean; onKeep: () => void; onClose: () => void }) {
+  const keepRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => keepRef.current?.focus(), []);
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-ink/60 p-4 sm:items-center sm:justify-center" role="alertdialog" aria-modal="true" aria-labelledby="guard-title">
+      <div className="w-full max-w-sm rounded-[24px] bg-white p-6 text-ink shadow-xl animate-rise">
+        <p id="guard-title" className="font-display text-2xl font-semibold tracking-tight">
+          Stop now?
+        </p>
+        <p className="mt-2 text-ink/65">
+          {conversation ? "What you've said so far is already with them and will be kept." : "This recording hasn't been sent yet, so it will be lost."}
+        </p>
+        <div className="mt-6 grid gap-2">
+          <button ref={keepRef} onClick={onKeep} className="h-12 rounded-full bg-ink font-semibold text-white">
+            Keep going
+          </button>
+          <button onClick={onClose} className="h-12 rounded-full font-semibold text-ink/70 hover:bg-ink/5">
+            {conversation ? "Stop and close" : "Discard and close"}
+          </button>
         </div>
       </div>
     </div>

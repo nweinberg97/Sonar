@@ -14,7 +14,7 @@ const MAX_BYTES = 2 * 1024 * 1024; // bursts are ≤ ~15 s of 16 kHz WAV (~500 K
  */
 export async function POST(req: Request) {
   return handle(async () => {
-    if (!allow(req, "conversation-burst", 150, 10 * 60_000)) return fail(TOO_MANY, 429);
+    if (!allow(req, "conversation-burst", 600, 10 * 60_000)) return fail(TOO_MANY, 429);
     let form: FormData;
     try {
       form = await req.formData();

@@ -35,6 +35,8 @@ export function ConversationStage({
   preview,
   track,
   onDone,
+  onRecordingChange,
+  overlay = null,
 }: {
   slug: string;
   question: { id: string; text: string };
@@ -44,8 +46,12 @@ export function ConversationStage({
   /** Hand over uploads still in flight; the finishing screen waits for them. */
   track: (p: Promise<boolean>) => void;
   onDone: () => void;
+  /** Tells the page whether the mic is live (so closing mid-answer can ask first). */
+  onRecordingChange?: (recording: boolean) => void;
+  overlay?: React.ReactNode;
 }) {
   const [step, setStep] = useState<Step>("idle");
+  useEffect(() => onRecordingChange?.(step === "recording"), [step, onRecordingChange]);
   const [followup, setFollowup] = useState<{ text: string; key: number } | null>(null);
   const [typed, setTyped] = useState("");
   const [trouble, setTrouble] = useState("");
@@ -186,6 +192,7 @@ export function ConversationStage({
       className={`min-h-[100dvh] transition-colors duration-300 ${dark ? "on-dark bg-ink text-white" : "bg-cloud text-ink"}`}
       style={{ ["--level" as string]: 0 }}
     >
+      {overlay}
       <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col px-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-5">
         {preview && <PreviewBadge dark={dark} />}
         <div className="flex items-center gap-3">

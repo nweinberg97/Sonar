@@ -207,9 +207,9 @@ export async function deleteSession(id: string): Promise<void> {
 
 // ---------------------------------------------------------------- respondents
 
-export async function startRespondent(sessionId: string, at = nowIso()): Promise<string> {
+export async function startRespondent(sessionId: string, at = nowIso(), source: "link" | "embed" = "link"): Promise<string> {
   const id = newId();
-  await db.run(`INSERT INTO respondents (id, session_id, started_at) VALUES (?, ?, ?)`, id, sessionId, at);
+  await db.run(`INSERT INTO respondents (id, session_id, started_at, source) VALUES (?, ?, ?, ?)`, id, sessionId, at, source);
   return id;
 }
 
@@ -350,6 +350,7 @@ export async function listResponses(opts: { sessionId?: string; limit?: number }
     `SELECT r.id, r.session_id AS "sessionId", s.title AS "sessionTitle", r.question_id AS "questionId",
             q.text AS "questionText", q.position AS "questionPosition", r.session_response_id AS "sessionResponseId",
             r.transcript, r.input_mode AS "inputMode", r.duration_ms AS "durationMs", r.created_at AS "createdAt", r.segments,
+            (SELECT p.source FROM respondents p WHERE p.id = r.session_response_id) AS "respondentSource",
             i.sentiment_score AS "iScore", i.sentiment_label AS "iLabel", COALESCE(th.name, i.primary_theme) AS "iTheme",
             i.business_inefficiency AS "iIneff", i.feature_requests AS "iRequests", i.key_points AS "iPoints",
             i.executive_summary AS "iSummary"

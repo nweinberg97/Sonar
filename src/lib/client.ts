@@ -27,6 +27,12 @@ export function shareUrl(slug: string): string {
   return `${base.replace(/\/$/, "")}/s/${slug}`;
 }
 
+/** The two lines a site pastes to get the Feedback button for this Sonar. */
+export function embedSnippet(slug: string): string {
+  const base = (process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "")).replace(/\/$/, "");
+  return `<script async src="${base}/embed.js" data-sonar="${slug}"></script>\n<!-- Optional, after a moment that matters: -->\n<script>window.Sonar?.trigger("finished_setup")</script>`;
+}
+
 export function displayUrl(slug: string): string {
   return shareUrl(slug).replace(/^https?:\/\//, "");
 }

@@ -80,6 +80,8 @@ model Respondent {
   completedAt String?         @map("completed_at")
   // 1 = they tapped "OK to quote me anonymously" at the end. 0 by default: never assumed.
   quoteConsent Int            @default(0) @map("quote_consent")
+  // Where they answered: "link" (the Sonar's own page) or "embed" (the Feedback button in another site).
+  source      String          @default("link")
   session     FeedbackSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   responses   Response[]
 

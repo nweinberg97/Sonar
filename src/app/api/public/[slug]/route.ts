@@ -14,8 +14,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
     if (!s) return fail("This Sonar link doesn't look right.", 404);
     if (s.status === "closed" && !preview) return fail("This Sonar isn't taking responses any more.", 410);
     if (s.status === "draft" && !preview) return fail("This Sonar isn't live yet.", 404);
-    return json({
-      session: {
+    // Readable from other sites (the Feedback button checks Sonar is up) except drafts in preview.
+    return json(
+      {
+        session: {
         slug: s.slug,
         title: s.title,
         description: s.description,
@@ -23,7 +25,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
         format: s.format,
         targetSeconds: s.targetSeconds,
         questions: s.questions.map((q) => ({ id: q.id, text: q.text })),
+        },
       },
-    });
+      preview ? undefined : { headers: { "Access-Control-Allow-Origin": "*" } },
+    );
   });
 }

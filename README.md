@@ -15,8 +15,9 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000 and sign in with the password printed in the terminal (any username). On first run Sonar creates `.env`, generates that password, builds a local SQLite database, loads the demo workspace and starts downloading the speech model in the background. No accounts or API keys needed.
+Open http://localhost:3000 for the public landing page, then **Sign in** (top right, or go to `/feedback`) with the password printed in the terminal (any username). On first run Sonar creates `.env`, generates that password, builds a local SQLite database, loads the demo workspace and starts downloading the speech model in the background. No accounts or API keys needed.
 
+- **Landing page:** `/` (public). Its demo button and its own Feedback button use the Sonar in `NEXT_PUBLIC_DEMO_SONAR` / `NEXT_PUBLIC_FEEDBACK_SONAR` (default: the demo). Optional `NEXT_PUBLIC_CONTACT_EMAIL` shows a contact line.
 - **Creator workspace:** `/feedback` (password protected)
 - **Respondent link (demo):** `/s/northline-community` (open to anyone)
 
@@ -30,6 +31,30 @@ Requires Node 22+. Phones only allow the microphone over https, so for phone tes
 How a conversation stays instant on a small server: while someone talks, their browser sends a short burst of audio every 8–15 seconds, cut at a breath. Each burst is transcribed straight away (ahead of other work) and the model drafts the next follow-up in the background, so when they pause it's already waiting. If no draft is ready (the model is busy or off), a simple built-in follow-up is shown instead, so nobody waits. Background analysis of other answers pauses while anyone is mid-conversation. The finished conversation is saved as one answer: the transcript, plus each follow-up at the point it appeared (Responses shows it as a thread). The builder's preview runs real follow-ups without saving anything. Logic lives in `src/lib/services/conversation.ts`, the follow-up prompt in `src/lib/services/prompts.ts`, and the pause detector in `src/components/voice-activity.ts`.
 
 On a free 2-core Codespace, a burst takes roughly 3–6 seconds to transcribe and a follow-up 3–5 seconds to draft: comfortable for one or two people talking at once. Beyond that, people get more of the built-in follow-ups.
+
+## The Feedback button (embed Sonar in any website)
+
+Any site can add a Feedback button that opens a Sonar in a pop-up. The builder shows the code for each published Sonar (*Put it in your app*):
+
+```html
+<script async src="https://YOUR-SONAR/embed.js" data-sonar="your-sonar"></script>
+<script>window.Sonar?.trigger("finished_setup")</script>  <!-- optional: offer it after a moment that matters -->
+```
+
+Options on the script tag: `data-label` (button text; `""` for no corner button), `data-position` (`bottom-right`, `bottom-left`, `inline` with `data-target`), `data-offset` (px, to sit above a chat bubble), `data-prompt` (text of the offer). From the page: `Sonar.open()`, `Sonar.close()`, `Sonar.trigger(name)`, `Sonar.on("done" | "open" | "close", fn)`. Sonar's own landing page uses it.
+
+How the edge cases are handled (`public/embed.js`, `src/app/e/[slug]`):
+
+- **Sonar down, or the Sonar closed:** the script checks first and shows nothing, so there's never a broken button. Pages that call `Sonar.trigger()` keep working.
+- **Not annoying:** `trigger()` shows a small offer, never a full pop-up on its own, at most once every 30 days per person; "Not now" snoozes 7 days; never again for 30 days after they answer (remembered on that site, in the browser).
+- **Microphone:** the frame is given the mic explicitly. If it's blocked, people can type, or open the Sonar in a new tab if the pop-up can't load at all.
+- **Closing mid-answer** (×, Esc, or the host's `Sonar.close()`) asks first. Closing removes the frame, which releases the mic.
+- **Isolation:** the button lives in a shadow root and the Sonar screen in a frame, so the host's CSS can't break them. Messages between page and frame are checked against the exact origin both ways.
+- **Framing:** only `/e/*` can be shown inside other sites (`SONAR_EMBED_ORIGINS` limits which ones; default any). Every other page, including the workspace, refuses to be framed.
+- **Phones:** opens as a bottom sheet. **Loading twice** (single-page apps) does nothing extra. **Offices behind one IP:** rate limits are generous enough for a whole team.
+- Answers through the button are marked "via the Feedback button" in Responses.
+
+This only works for real once Sonar runs on an always-on server: a Codespace that's asleep means the button stays hidden.
 
 ## Library, weekly pulse and integrations
 

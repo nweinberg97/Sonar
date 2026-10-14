@@ -9,6 +9,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC = [
+  /^\/$/, // landing page
+  /^\/e\/[^/]+\/?$/, // the Feedback button's pop-up
+  /^\/embed\.js$/,
   /^\/s\/[^/]+\/?$/,
   /^\/api\/public\/[^/]+(\/(start|complete|consent))?$/,
   /^\/api\/voice-answers$/,

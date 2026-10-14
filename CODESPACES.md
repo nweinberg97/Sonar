@@ -14,7 +14,7 @@ A Codespace is a computer in the cloud that GitHub runs for you. It has a copy o
    ```
 
 4. Open the **Ports** tab (next to Terminal). Find port **3000**, right-click it, choose **Port Visibility → Public**. Without this step, only you can open the link.
-5. Hover over the address in the **Forwarded Address** column and click the globe icon to open it. Sign in with the password (any username).
+5. Hover over the address in the **Forwarded Address** column and click the globe icon to open it. You'll see Sonar's public landing page; click **Sign in** (top right) and use the password (any username).
 
 That's your creator workspace. Its address looks like `https://something-3000.app.github.dev`.
 

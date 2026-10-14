@@ -144,6 +144,7 @@ export function ResponsesView() {
                         )}
                         <p className="mt-2 text-xs text-ink/40">
                           {r.inputMode === "voice" ? `Spoken, ${formatDuration(r.durationMs)}` : "Typed"}
+                          {r.respondentSource === "embed" ? " · via the Feedback button" : ""}
                           {r.segments && countFollowups(r.segments) > 0 ? ` · ${plural(countFollowups(r.segments), "follow-up")}` : ""}
                         </p>
                       </div>

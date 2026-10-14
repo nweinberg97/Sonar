@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, displayUrl, shareUrl } from "@/lib/client";
+import { api, displayUrl, embedSnippet, shareUrl } from "@/lib/client";
 import type { Cadence, SessionDetail, SessionFormat, SessionStatus } from "@/lib/types";
 import { btn, CopyButton, ErrorNote, Loading, SessionTabs, StatusChip } from "./ui";
 
@@ -365,6 +365,18 @@ export function Builder() {
               </>
             )}
           </div>
+
+          {live && (
+            <div className="rounded-[24px] border border-ink/10 p-5">
+              <p className="font-display text-lg font-semibold tracking-tight">Put it in your app</p>
+              <p className="mt-1.5 text-sm text-ink/55">
+                Paste this into any website to add a Feedback button. Call <code className="text-ink/70">Sonar.trigger()</code> after a moment
+                that matters to offer it once.
+              </p>
+              <pre className="mt-3 overflow-x-auto rounded-xl bg-cloud p-3 text-[0.72rem] leading-relaxed text-ink/80">{embedSnippet(session.slug)}</pre>
+              <CopyButton text={embedSnippet(session.slug)} label="Copy code" className={`${btn.ghost} mt-3`} />
+            </div>
+          )}
 
           <div>
             <div className="mb-3 flex items-center justify-between">

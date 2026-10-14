@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 /** Save an accepted answer. The model analyzes it in the background (analysis-queue.ts). */
 export async function POST(req: Request) {
   return handle(async () => {
-    if (!allow(req, "answers", 40, 10 * 60_000)) return fail(TOO_MANY, 429);
+    if (!allow(req, "answers", 200, 10 * 60_000)) return fail(TOO_MANY, 429);
     const body = await readJson(req);
     const respondentId = requireId(body.respondentId, "respondent");
     const questionId = requireId(body.questionId, "question");

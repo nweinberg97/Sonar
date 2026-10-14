@@ -15,7 +15,7 @@ const MAX_BYTES = 12 * 1024 * 1024; // 16 kHz WAV is ~32 KB/s, so ~6 minutes; an
  */
 export async function POST(req: Request) {
   return handle(async () => {
-    if (!allow(req, "voice", 40, 10 * 60_000)) return fail(TOO_MANY, 429);
+    if (!allow(req, "voice", 200, 10 * 60_000)) return fail(TOO_MANY, 429);
     let form: FormData;
     try {
       form = await req.formData();

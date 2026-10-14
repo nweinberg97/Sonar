@@ -63,6 +63,8 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 
 ## Phase 2: Deployment modes (link, email, embed) and the hosting decision
 
+**Embed built (Oct 2026).** `public/embed.js` + `/e/:slug`: a Feedback button any site adds with one script tag, `Sonar.trigger()` offers after key moments (30-day cap, 7-day snooze), health check before showing, close-mid-answer guard, shadow-DOM isolation, origin-checked messages, `frame-ancestors` limited to `/e/*` (`SONAR_EMBED_ORIGINS`), phone bottom sheet, `respondents.source`. Tested from a separate site on both databases. Still waiting on always-on hosting to be usable on real sites. Not built: passing context (plan, page) from the host app, email invites.
+
 **Goal.** Let feedback be collected where people already are.
 
 **User-facing behavior.**
@@ -250,7 +252,7 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 
 Waiting until Sonar is on an always-on server with real users:
 
-- **Embeds and the in-app widget** (Phase 2).
+- **Always-on hosting**, so the Feedback button works on real sites (the embed itself is built).
 - **Personal follow-up emails:** respondents opt in to a reply ("want a reply? leave your email") or the host product passes who the customer is; Sonar drafts a reply per person from what they said, reviewed and sent by the creator. Changes the anonymity promise for those who opt in.
 - **CRMs (HubSpot etc.):** save identified respondents' feedback and themes to their contact record. Depends on the opt-in above.
 - **General outgoing webhook / CSV export:** one setting that covers Zapier, Make, Notion and spreadsheets.

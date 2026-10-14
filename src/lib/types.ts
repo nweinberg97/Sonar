@@ -67,6 +67,8 @@ export interface ResponseRow {
   createdAt: string;
   /** Conversation answers: speech and follow-ups in order. Null for single answers. */
   segments: Segment[] | null;
+  /** "embed" when they answered through the Feedback button inside another site. */
+  respondentSource?: "link" | "embed";
   insight: Insight | null;
 }
 
