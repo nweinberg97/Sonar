@@ -13,6 +13,9 @@ export const metadata: Metadata = {
 // The public demo visitors can try. Point it at any published Sonar (a Conversation one shows follow-ups).
 const DEMO = process.env.NEXT_PUBLIC_DEMO_SONAR || "northline-community";
 const CONTACT = process.env.NEXT_PUBLIC_CONTACT_EMAIL || "";
+// Built as a standalone static page (GitHub Pages): no Sonar server behind it, so the
+// demo buttons scroll to the practice run and there's no sign-in or Feedback button.
+const STATIC = process.env.NEXT_PUBLIC_STATIC_SITE === "1";
 // The Sonar behind this page's own Feedback button (Sonar collecting feedback about Sonar).
 const FEEDBACK = process.env.NEXT_PUBLIC_FEEDBACK_SONAR || DEMO;
 
@@ -36,13 +39,15 @@ export default function Landing() {
             <SonarMark size={20} />
             Sonar. Effortless Feedback.
           </span>
-          <Link href="/feedback" className="hover:text-ink">
-            Creator sign-in
-          </Link>
+          {!STATIC && (
+            <Link href="/feedback" className="hover:text-ink">
+              Creator sign-in
+            </Link>
+          )}
         </div>
       </footer>
       {/* The same Feedback button any site can add (public/embed.js). */}
-      <Script src="/embed.js" data-sonar={FEEDBACK} data-label="Feedback" strategy="afterInteractive" />
+      {!STATIC && <Script src="/embed.js" data-sonar={FEEDBACK} data-label="Feedback" strategy="afterInteractive" />}
     </div>
   );
 }
@@ -58,9 +63,11 @@ function Hero() {
             <SonarWordmark />
             <span className="rounded-full bg-ink/[0.06] px-2.5 py-1 text-xs font-medium text-ink/55">Early prototype</span>
           </span>
-          <Link href="/feedback" className="rounded-full px-4 py-2 text-sm font-medium text-ink/60 transition hover:bg-ink/5 hover:text-ink">
-            Sign in
-          </Link>
+          {!STATIC && (
+            <Link href="/feedback" className="rounded-full px-4 py-2 text-sm font-medium text-ink/60 transition hover:bg-ink/5 hover:text-ink">
+              Sign in
+            </Link>
+          )}
         </header>
 
         <div className="grid items-center gap-14 pb-20 pt-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:pb-28 lg:pt-14">
@@ -77,20 +84,16 @@ function Hero() {
               they pause. You get what they actually meant: the themes, the quotes and what to do next.
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
-              <Link
-                href={`/s/${DEMO}`}
-                className="inline-flex h-14 items-center gap-3 rounded-full bg-blue px-7 text-[1.05rem] font-semibold text-white shadow-[0_10px_30px_-10px_rgba(56,103,255,0.7)] transition hover:bg-blue-press active:scale-[0.98]"
-              >
-                <MicGlyph />
-                Try the 1-minute demo
-              </Link>
+              <DemoLink className="inline-flex h-14 items-center gap-3 rounded-full bg-blue px-7 text-[1.05rem] font-semibold text-white shadow-[0_10px_30px_-10px_rgba(56,103,255,0.7)] transition hover:bg-blue-press active:scale-[0.98]" />
               <a href="#how" className="inline-flex h-14 items-center rounded-full border border-ink/12 px-6 font-semibold text-ink transition hover:border-ink/25 hover:bg-ink/[0.03]">
                 How it works
               </a>
             </div>
             <p className="mt-5 text-sm text-ink/50">No sign-up. Your voice is turned into text and never stored.</p>
           </div>
-          <PracticePhone />
+          <div id="try" className="scroll-mt-8">
+            <PracticePhone />
+          </div>
         </div>
       </div>
     </section>
@@ -314,21 +317,35 @@ function Closing() {
         <div>
           <p className="text-sm font-medium text-ink/55">Sonar is an early prototype, being tested with a small group.</p>
           <h2 className="mt-4 font-display text-5xl font-semibold tracking-[-0.04em] sm:text-6xl">Hear it for yourself.</h2>
-          <p className="mt-4 max-w-[30rem] text-lg text-ink/65">Answer the demo the way a customer would. It takes about a minute.</p>
+          <p className="mt-4 max-w-[30rem] text-lg text-ink/65">
+            {STATIC ? "Tap the mic on the phone above and walk through it the way a customer would." : "Answer the demo the way a customer would. It takes about a minute."}
+          </p>
           {CONTACT && (
             <p className="mt-6 text-ink/65">
               Questions or want to try it with your team? <span className="select-all font-medium text-ink">{CONTACT}</span>
             </p>
           )}
         </div>
-        <Link
-          href={`/s/${DEMO}`}
-          className="inline-flex h-14 shrink-0 items-center gap-3 rounded-full bg-blue px-7 text-[1.05rem] font-semibold text-white shadow-[0_10px_30px_-10px_rgba(56,103,255,0.7)] transition hover:bg-blue-press active:scale-[0.98]"
-        >
-          <MicGlyph />
-          Try the 1-minute demo
-        </Link>
+        <DemoLink className="inline-flex h-14 shrink-0 items-center gap-3 rounded-full bg-blue px-7 text-[1.05rem] font-semibold text-white shadow-[0_10px_30px_-10px_rgba(56,103,255,0.7)] transition hover:bg-blue-press active:scale-[0.98]" />
       </div>
     </section>
+  );
+}
+
+/** "Try the demo": the real demo Sonar, or the practice run when there's no server (static build). */
+function DemoLink({ className }: { className: string }) {
+  if (STATIC) {
+    return (
+      <a href="#try" className={className}>
+        <MicGlyph />
+        Try the practice run
+      </a>
+    );
+  }
+  return (
+    <Link href={`/s/${DEMO}`} className={className}>
+      <MicGlyph />
+      Try the 1-minute demo
+    </Link>
   );
 }
