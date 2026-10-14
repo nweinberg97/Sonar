@@ -17,7 +17,7 @@ export function SonarMark({
   title?: string;
 }) {
   const s = tone === "dark" ? "#FFFFFF" : "#3867FF";
-  const echo = tone === "dark" ? "#C8F36B" : "#55D6BE";
+  const echo = "#55D6BE";
   const push = 1 + Math.min(1, Math.max(0, level)) * 0.18;
   return (
     <svg

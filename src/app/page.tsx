@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Script from "next/script";
+import { PracticePhone } from "@/components/landing/PracticePhone";
 import { SonarMark, SonarWordmark } from "@/components/SonarMark";
 
 export const metadata: Metadata = {
@@ -89,7 +90,7 @@ function Hero() {
             </div>
             <p className="mt-5 text-sm text-ink/50">No sign-up. Your voice is turned into text and never stored.</p>
           </div>
-          <PhoneMock />
+          <PracticePhone />
         </div>
       </div>
     </section>
@@ -102,38 +103,6 @@ function MicGlyph() {
       <rect x="8.5" y="2.5" width="7" height="12" rx="3.5" fill="currentColor" />
       <path d="M5 11a7 7 0 0 0 14 0M12 18v3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
-  );
-}
-
-/** The screen a respondent sees, drawn in HTML (not a screenshot): the same question screen and blue mic as /s/… */
-function PhoneMock() {
-  return (
-    <div className="relative mx-auto w-full max-w-[330px]" aria-label="A Sonar question on a phone, with the microphone button" role="img">
-      <div className="relative rounded-[44px] bg-ink p-3 shadow-[0_40px_80px_-30px_rgba(17,19,21,0.55)]">
-        <div className="flex min-h-[560px] flex-col rounded-[34px] bg-cloud px-6 pb-8 pt-6">
-          <div className="flex items-center gap-3">
-            <SonarMark size={18} />
-            <span className="h-1 flex-1 overflow-hidden rounded-full bg-ink/10">
-              <span className="block h-full w-[8%] rounded-full bg-blue" />
-            </span>
-            <span className="tabular text-xs text-ink/55">~1 min</span>
-          </div>
-          <p className="mt-10 font-display text-[1.75rem] font-semibold leading-[1.08] tracking-[-0.03em]">How has your first month with us been?</p>
-          <p className="mt-4 text-[0.95rem] text-ink/55">Tap the mic and just talk. If you pause, we&rsquo;ll ask a follow-up.</p>
-          <div className="mt-auto flex flex-col items-center pt-10">
-            <span className="relative grid h-24 w-24 place-items-center rounded-full bg-blue text-white shadow-[0_10px_30px_-10px_rgba(56,103,255,0.7)]">
-              <span className="absolute inset-0 rounded-full border-2 border-blue/40 animate-ping-out" aria-hidden />
-              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <rect x="8.5" y="2.5" width="7" height="12" rx="3.5" fill="currentColor" />
-                <path d="M5 11a7 7 0 0 0 14 0M12 18v3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            </span>
-            <span className="mt-4 text-sm font-semibold">Tap to speak</span>
-            <span className="mt-4 text-xs text-ink/50 underline decoration-ink/20 underline-offset-4">Prefer to type?</span>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -213,10 +182,10 @@ function HowItWorks() {
 // ---------------------------------------------------------------- what the creator sees
 
 const THEMES = [
-  { name: "Hands-on workshops", n: 19, tone: "Loved", bar: "bg-lime" },
+  { name: "Hands-on workshops", n: 19, tone: "Loved", bar: "bg-cyan" },
   { name: "Onboarding", n: 14, tone: "Friction", bar: "bg-blue" },
   { name: "Finding information", n: 11, tone: "Friction", bar: "bg-blue" },
-  { name: "Pricing", n: 6, tone: "Asked for", bar: "bg-cyan" },
+  { name: "Pricing", n: 6, tone: "Asked for", bar: "bg-ink/25" },
 ];
 
 function WhatYouGet() {
@@ -258,7 +227,7 @@ function WhatYouGet() {
           <ul className="mt-3 space-y-2">
             {["Put this week's schedule on one page, linked everywhere.", "Pair every new member with someone for their first week."].map((a) => (
               <li key={a} className="flex gap-3 rounded-2xl bg-cloud px-4 py-3">
-                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-[2px] bg-lime ring-1 ring-ink/20" />
+                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-[2px] bg-blue" />
                 {a}
               </li>
             ))}
@@ -281,8 +250,8 @@ const FEATURES: { title: string; body: string; status: "Works today" | "Next" | 
 ];
 
 const STATUS_STYLE = {
-  "Works today": "bg-lime text-ink",
-  Next: "bg-blue text-white",
+  "Works today": "bg-blue/10 text-blue",
+  Next: "bg-cyan/20 text-ink",
   Later: "bg-ink/[0.07] text-ink/60",
 };
 
