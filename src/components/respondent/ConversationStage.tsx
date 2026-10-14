@@ -199,7 +199,7 @@ export function ConversationStage({
           <SonarMark size={22} tone={dark ? "dark" : "light"} />
           <div className={`h-1 flex-1 overflow-hidden rounded-full ${dark ? "bg-white/15" : "bg-ink/10"}`} aria-hidden>
             <div
-              className={`h-full rounded-full transition-[width] duration-300 ${pastTarget ? "bg-lime" : dark ? "bg-white" : "bg-blue"}`}
+              className={`h-full rounded-full transition-[width] duration-300 ${pastTarget ? "bg-cyan" : dark ? "bg-white" : "bg-blue"}`}
               style={{ width: `${progress * 100}%` }}
             />
           </div>
@@ -225,7 +225,7 @@ export function ConversationStage({
                 </p>
               ) : followup ? (
                 <div key={followup.key} className="animate-rise">
-                  <p className="text-sm font-medium text-lime">Follow-up</p>
+                  <p className="text-sm font-medium text-cyan">Follow-up</p>
                   <p className="mt-2 font-display text-[1.9rem] font-semibold leading-tight tracking-[-0.025em]">{followup.text}</p>
                 </div>
               ) : (
@@ -272,8 +272,8 @@ export function ConversationStage({
 
           {step === "recording" && (
             <div className="flex flex-col items-center">
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-lime">
-                <span className="h-2 w-2 rounded-full bg-lime animate-breathe" aria-hidden />
+              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-cyan">
+                <span className="h-2 w-2 rounded-full bg-cyan animate-breathe" aria-hidden />
                 Listening
               </div>
               <div className="tabular font-display text-5xl font-medium tracking-tight" aria-label={`Elapsed ${formatClock(elapsed)}`}>
@@ -290,7 +290,7 @@ export function ConversationStage({
                 className="relative grid h-24 w-24 place-items-center rounded-full bg-white text-ink transition duration-150 active:scale-95 disabled:bg-white/10 disabled:text-white/50"
               >
                 <span
-                  className="absolute inset-0 rounded-full border-2 border-lime"
+                  className="absolute inset-0 rounded-full border-2 border-cyan"
                   style={{ transform: "scale(calc(1 + var(--level) * 0.45))", opacity: "calc(0.25 + var(--level))", transition: "transform 80ms linear" }}
                   aria-hidden
                 />
@@ -306,7 +306,7 @@ export function ConversationStage({
 
           {step === "sent" && (
             <div className="flex flex-col items-center pb-14">
-              <span className="grid h-28 w-28 place-items-center rounded-full bg-lime text-ink animate-rise">
+              <span className="grid h-28 w-28 place-items-center rounded-full bg-cyan text-ink animate-rise">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden>
                   <path d="M5 12.5 10 17.5 19 7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>

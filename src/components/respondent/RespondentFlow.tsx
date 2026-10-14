@@ -433,7 +433,7 @@ export function RespondentFlow({
               <span
                 key={q.id}
                 className={`h-1 flex-1 rounded-full transition-colors duration-500 ${
-                  i < index ? (dark ? "bg-white" : "bg-ink") : i === index ? (dark ? "bg-lime" : "bg-blue") : dark ? "bg-white/15" : "bg-ink/10"
+                  i < index ? (dark ? "bg-white" : "bg-ink") : i === index ? (dark ? "bg-cyan" : "bg-blue") : dark ? "bg-white/15" : "bg-ink/10"
                 }`}
               />
             ))}
@@ -499,8 +499,8 @@ export function RespondentFlow({
 
           {step === "recording" && (
             <div className="flex flex-col items-center">
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-lime">
-                <span className="h-2 w-2 rounded-full bg-lime animate-breathe" aria-hidden />
+              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-cyan">
+                <span className="h-2 w-2 rounded-full bg-cyan animate-breathe" aria-hidden />
                 Recording
               </div>
               <div className="tabular font-display text-6xl font-medium tracking-tight" aria-label={`Elapsed ${formatClock(rec.elapsed)}`}>
@@ -516,7 +516,7 @@ export function RespondentFlow({
                 className="relative grid h-28 w-28 place-items-center rounded-full bg-white text-ink transition-transform duration-150 active:scale-95"
               >
                 <span
-                  className="absolute inset-0 rounded-full border-2 border-lime"
+                  className="absolute inset-0 rounded-full border-2 border-cyan"
                   style={{ transform: "scale(calc(1 + var(--level) * 0.45))", opacity: "calc(0.25 + var(--level))", transition: "transform 80ms linear" }}
                   aria-hidden
                 />
@@ -533,11 +533,11 @@ export function RespondentFlow({
             <div className="flex flex-col items-center pb-14">
               <div className="relative grid h-28 w-28 place-items-center">
                 <span
-                  className="absolute inset-0 rounded-full border-2 border-lime"
+                  className="absolute inset-0 rounded-full border-2 border-cyan"
                   style={{ animation: "ping-soft 0.9s var(--ease-signal) 1 both" }}
                   aria-hidden
                 />
-                <span className="grid h-28 w-28 place-items-center rounded-full bg-lime text-ink animate-rise">
+                <span className="grid h-28 w-28 place-items-center rounded-full bg-cyan text-ink animate-rise">
                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden>
                     <path d="M5 12.5 10 17.5 19 7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>

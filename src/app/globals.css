@@ -6,7 +6,6 @@
   --color-blue: #3867ff; /* Sonar Blue */
   --color-blue-press: #2a55e6;
   --color-cyan: #55d6be; /* Signal Cyan */
-  --color-lime: #c8f36b; /* Electric Lime */
   --color-cloud: #f5f7f6; /* Cloud */
 
   --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
@@ -46,7 +45,7 @@
     font-feature-settings: "ss01", "cv11";
   }
   ::selection {
-    background: var(--color-lime);
+    background: var(--color-cyan);
     color: var(--color-ink);
   }
   :focus-visible {
@@ -55,7 +54,7 @@
     border-radius: 6px;
   }
   .on-dark :focus-visible {
-    outline-color: var(--color-lime);
+    outline-color: var(--color-cyan);
   }
   button {
     cursor: pointer;

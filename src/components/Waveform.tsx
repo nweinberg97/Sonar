@@ -11,7 +11,7 @@ import { useEffect, useRef } from "react";
 export function Waveform({
   analyserRef,
   levelTarget,
-  color = "#C8F36B",
+  color = "#55D6BE",
   bars = 48,
   height = 96,
 }: {

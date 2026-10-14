@@ -335,7 +335,7 @@ export function Builder() {
                 <p className="font-display text-xl font-semibold tracking-tight">Your Sonar is ready.</p>
                 <p className="mt-3 break-all rounded-xl bg-white/10 px-3 py-2.5 text-sm text-white/85">{displayUrl(session.slug)}</p>
                 <div className="mt-4 grid grid-cols-2 gap-2">
-                  <CopyButton text={url} className="h-10 rounded-full bg-lime text-sm font-semibold text-ink transition hover:brightness-95" />
+                  <CopyButton text={url} className="h-10 rounded-full bg-cyan text-sm font-semibold text-ink transition hover:brightness-95" />
                   <a href={url} target="_blank" rel="noreferrer" className="grid h-10 place-items-center rounded-full bg-white/10 text-sm font-semibold hover:bg-white/15">
                     Open Sonar
                   </a>

@@ -27,9 +27,9 @@ interface Quote {
 
 function mood(avg: number | null): { label: string; dot: string } {
   if (avg === null) return { label: "No answers yet", dot: "bg-ink/20" };
-  if (avg >= 7) return { label: "Loved", dot: "bg-lime" };
+  if (avg >= 7) return { label: "Loved", dot: "bg-cyan" };
   if (avg < 5.5) return { label: "Friction", dot: "bg-blue" };
-  return { label: "Mixed", dot: "bg-cyan" };
+  return { label: "Mixed", dot: "bg-ink/40" };
 }
 
 /**

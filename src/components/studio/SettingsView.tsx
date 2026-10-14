@@ -93,7 +93,7 @@ export function SettingsView() {
                   <dt className="font-medium">Model status</dt>
                   <dd className="flex items-center gap-2 text-ink/65">
                     <span
-                      className={`h-2 w-2 rounded-full ${status.ai.ollama.reachable && status.ai.ollama.hasModel ? "bg-lime ring-1 ring-ink/20" : "bg-blue"}`}
+                      className={`h-2 w-2 rounded-full ${status.ai.ollama.reachable && status.ai.ollama.hasModel ? "bg-cyan ring-1 ring-ink/20" : "bg-blue"}`}
                       aria-hidden
                     />
                     {!status.ai.ollama.reachable
@@ -149,7 +149,7 @@ export function SettingsView() {
           <p className="mt-2 text-ink/60">For running user tests. Available in development, or when SONAR_DEMO_TOOLS=true.</p>
 
           {note && (
-            <p role="status" className="mt-5 rounded-2xl bg-lime/60 px-4 py-3 text-sm font-medium">
+            <p role="status" className="mt-5 rounded-2xl bg-cyan/60 px-4 py-3 text-sm font-medium">
               {note}
             </p>
           )}
@@ -218,7 +218,7 @@ function Provider({ label, p, text }: { label: string; p: Status["ai"]; text?: s
     <div className="flex flex-wrap items-center justify-between gap-3 py-4">
       <dt className="font-medium">{label}</dt>
       <dd className="flex items-center gap-2 text-ink/65">
-        <span className={`h-2 w-2 rounded-full ${live ? "bg-lime ring-1 ring-ink/20" : "bg-cyan"}`} aria-hidden />
+        <span className={`h-2 w-2 rounded-full ${live ? "bg-cyan ring-1 ring-ink/20" : "bg-ink/30"}`} aria-hidden />
         {text ?? `${NAMES[p.provider] ?? p.provider}, ${p.model}`}
         {p.misconfigured && <span className="text-sm text-blue">Key missing, using demo</span>}
       </dd>
@@ -367,7 +367,7 @@ function Backups() {
 
 function Integrations({ connected }: { connected?: { slack: boolean; slackChannels?: string[]; linear: boolean } }) {
   const chip = (on?: boolean) => (
-    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${on ? "bg-lime text-ink" : "bg-ink/[0.06] text-ink/55"}`}>
+    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${on ? "bg-cyan text-ink" : "bg-ink/[0.06] text-ink/55"}`}>
       {on ? "Connected" : "Not connected"}
     </span>
   );

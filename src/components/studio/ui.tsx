@@ -29,7 +29,7 @@ export function PageHeader({ title, sub, children }: { title: string; sub?: Reac
 }
 
 const STATUS: Record<SessionStatus, { label: string; cls: string }> = {
-  published: { label: "Live", cls: "bg-lime text-ink" },
+  published: { label: "Live", cls: "bg-cyan text-ink" },
   draft: { label: "Draft", cls: "bg-ink/[0.06] text-ink/60" },
   closed: { label: "Closed", cls: "bg-ink/[0.06] text-ink/45" },
 };
@@ -45,8 +45,8 @@ export function StatusChip({ status }: { status: SessionStatus }) {
 }
 
 export const SENTIMENT: Record<SentimentLabel, { label: string; dot: string }> = {
-  positive: { label: "Positive", dot: "bg-lime ring-1 ring-ink/15" },
-  mixed: { label: "Mixed", dot: "bg-cyan" },
+  positive: { label: "Positive", dot: "bg-cyan ring-1 ring-ink/15" },
+  mixed: { label: "Mixed", dot: "bg-ink/40" },
   neutral: { label: "Neutral", dot: "bg-ink/25" },
   negative: { label: "Friction", dot: "bg-blue" },
 };

@@ -180,7 +180,7 @@ export function InsightsView() {
               <ul className="mt-5 space-y-3">
                 {s.actions.map((a, i) => (
                   <li key={i} className="flex gap-4 rounded-2xl bg-cloud px-5 py-4 text-[1.05rem] leading-snug">
-                    <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-[3px] bg-lime ring-1 ring-ink/20" aria-hidden />
+                    <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-[3px] bg-cyan ring-1 ring-ink/20" aria-hidden />
                     <span className="flex-1">{a}</span>
                     {linearButton("action", a)}
                   </li>
@@ -243,10 +243,10 @@ export function InsightsView() {
 }
 
 function tone(t: ThemeCount): { label: string; bar: string } {
-  if (t.requests * 2 >= t.mentions && t.avgSentiment < 7.5) return { label: "Asked for", bar: "bg-cyan" };
-  if (t.avgSentiment >= 7) return { label: "Loved", bar: "bg-lime" };
+  if (t.requests * 2 >= t.mentions && t.avgSentiment < 7.5) return { label: "Asked for", bar: "bg-ink/35" };
+  if (t.avgSentiment >= 7) return { label: "Loved", bar: "bg-cyan" };
   if (t.avgSentiment < 5.5) return { label: "Friction", bar: "bg-blue" };
-  return { label: "Mixed", bar: "bg-cyan" };
+  return { label: "Mixed", bar: "bg-ink/20" };
 }
 
 function ThemeRow({ theme: t, max }: { theme: ThemeCount; max: number }) {
@@ -277,8 +277,8 @@ function ThemeRow({ theme: t, max }: { theme: ThemeCount; max: number }) {
 function SentimentBar({ s }: { s: Synthesis["sentiment"] }) {
   const total = s.positive + s.mixed + s.neutral + s.negative || 1;
   const parts = [
-    { k: "Positive", n: s.positive, c: "bg-lime" },
-    { k: "Mixed", n: s.mixed, c: "bg-cyan" },
+    { k: "Positive", n: s.positive, c: "bg-cyan" },
+    { k: "Mixed", n: s.mixed, c: "bg-ink/40" },
     { k: "Neutral", n: s.neutral, c: "bg-ink/20" },
     { k: "Friction", n: s.negative, c: "bg-blue" },
   ];
