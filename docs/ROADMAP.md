@@ -96,6 +96,26 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 
 **Ready for the move.** Switching to Postgres is one setting (`DATABASE_URL`), tested against a real Postgres 16; the move checklist is in the README ("When you're ready to move"). One limit to remember: Sonar must run as a single always-on server (not serverless, not several copies), because live conversations and queues are held in memory.
 
+**Backlog (picked Oct 16 2026, revisit Sun Oct 18): free test hosting on Vercel + Neon + Groq.** Goal: an always-on link and a Feedback button to test inside SETI, at $0 and with no card anywhere.
+
+- **Accounts the creator makes (~15 min):**
+  - Vercel: sign in with GitHub, import the repo.
+  - Neon: added from Vercel's Storage tab.
+  - Groq: create an API key and paste it into Vercel's env settings.
+- **Code changes (a few days):**
+  - Move live-conversation state and the analysis queue out of memory into the database, so it works serverless.
+  - Use Groq for transcription (whisper-large-v3-turbo) and insights.
+  - Keep the self-hosted mode (local Whisper + Ollama) as an option.
+  - Update the respondent privacy line: a provider transcribes, and audio is still never stored.
+- **Free limits:**
+  - Vercel Hobby: non-commercial use, about 4 active CPU-hours per month.
+  - Neon: about 100 compute-hours per month, scales to zero when idle.
+  - Groq: 2,000 audio requests per day, 20 per minute.
+  - Over a limit, the service pauses; nothing is billed.
+- **When to start paying:**
+  - Vercel Pro ($20/month) once Sonar or SETI is commercial.
+  - Groq at about $0.001 per answer, past a few hundred answers a day.
+
 **Decisions before starting.**
 
 - **Hosting (blocking).** A real embed needs a server that is always on, and Codespaces sleeps. The options:
