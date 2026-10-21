@@ -288,6 +288,13 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
    - Later: patterns across brands.
    - Pricing idea: free for one brand, paid per added brand.
 4. **Optional "leave a way to reach you"** for follow-ups. Anonymity stays the default. This connects to the post-launch personal follow-up emails.
+   - **"Want to talk more?" on the thank-you screen.** The creator picks one per Sonar (or none):
+     - **(a) Opt-in contact:** "Would you be open to a chat? Leave your email." It's saved with that answer, so the team knows what the person said.
+     - **(b) Booking link:** "Want to give more in-depth feedback? Chat with someone on the team." This opens the creator's scheduling link, e.g. a Sunroll link.
+   - Option (b) keeps the answer fully anonymous: Sonar never learns who booked, and the booking isn't tied to the answer unless the person chooses to say so in the call.
+   - Shown only after the answer is sent and the quote-consent card, never before. Skipping it is one tap.
+   - Data: `feedback_sessions.followup_mode` (`none` | `contact` | `link`) and `followup_url`, plus an optional `respondents.contact` used only for (a).
+   - Show the link's host ("Opens sunroll…") so respondents know where they're going.
 5. **"Powered by Sonar"** on the done screen and embed, with a path to create your own Sonar (the respondent → creator loop).
 6. **Opt-in inside my own apps.** Those apps promise data stays on the device, so the Feedback button there must be clearly opt-in, with a one-line explanation.
 7. **Personal use: voice reflections.** Guided questions that pull out insights about yourself.
