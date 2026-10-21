@@ -258,6 +258,47 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 
 **Decisions before starting.** Which tool your first real team actually uses.
 
+## Backlog: direction from the Oct 20 strategy conversation
+
+**Principles this sets.**
+
+- Answers are spoken, with no forms, no fields and no account details.
+- Anonymous by default.
+- People always know what happens to their data.
+- Guided, not interviewed: one pre-written question, then a natural follow-up only when the person pauses. It never interrupts and is never a chatbot.
+- Speech is transcribed **on the person's device**.
+- Keep only the insights, not the audio and not the transcript.
+- Cheap enough for one person to run for a long time.
+
+**Changes these imply (where today's build differs).**
+
+1. **On-device transcription.**
+   - Today Whisper runs on Sonar's server.
+   - Move it into the respondent's browser. Same open model; transformers.js runs in browsers.
+   - Open questions: model download size and speed on older phones. Fallback: typing.
+   - This replaces Groq for speech in the free-hosting plan (Phase 2 backlog). An AI provider is then needed only for follow-ups and insights, which receive text, never audio.
+2. **Insights only, no transcripts.**
+   - Today full transcripts are stored and shown in Responses, and testimonials quote them.
+   - New flow: transcript → insights → transcript discarded.
+   - Keep a quote only when the respondent approves that specific quote. This becomes the evidence teams can check, building on the quote-consent card.
+   - Decide what Responses shows without transcripts.
+3. **Organisation → brands → surveys.**
+   - Today it's one workspace → Sonars.
+   - Add the data model now. First UI: a brand switcher and insights per brand.
+   - Later: patterns across brands.
+   - Pricing idea: free for one brand, paid per added brand.
+4. **Optional "leave a way to reach you"** for follow-ups. Anonymity stays the default. This connects to the post-launch personal follow-up emails.
+5. **"Powered by Sonar"** on the done screen and embed, with a path to create your own Sonar (the respondent → creator loop).
+6. **Opt-in inside my own apps.** Those apps promise data stays on the device, so the Feedback button there must be clearly opt-in, with a one-line explanation.
+7. **Personal use: voice reflections.** Guided questions that pull out insights about yourself.
+
+**First live test.** A "tell us what you think, just talk" button in Sedi before its Product Hunt launch. This needs the always-on hosting above, and ideally on-device transcription first, so Sedi's privacy promise holds.
+
+**Learning to-dos (not code).**
+
+- Talk to ~10 people who run feedback or research: what they do with responses, what they wish they had, what they'd pay to replace.
+- Get a few outside teams early. My own apps teach the respondent side, not what a paying team needs.
+
 ## Premature: cut or defer, and say so if asked
 
 - **Behavior-triggered widgets** ("show after the user does X"). These need an SDK and event tracking. A manual pop-up is enough to test.
