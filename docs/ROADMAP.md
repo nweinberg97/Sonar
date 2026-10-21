@@ -299,6 +299,16 @@ Read `README.md`, `prisma/schema.prisma`, `src/lib/data.ts`, `src/lib/db.ts`, `s
 6. **Opt-in inside my own apps.** Those apps promise data stays on the device, so the Feedback button there must be clearly opt-in, with a one-line explanation.
 7. **Personal use: voice reflections.** Guided questions that pull out insights about yourself.
 
+**Cross-app network: Sedi → Sonar → Sunroll → Navoro.** This is the strongest chain to make tight first; other apps link in later only where the audience naturally overlaps.
+
+- **Tag every cross-app link** with where it came from, e.g. `?ref=sonar&from=sedi` (standard `utm_source`/`utm_medium` work too). Tags carry the app name only, never a person or an answer.
+- **Sonar's outgoing links:**
+  - "Powered by Sonar" on the done screen and embed.
+  - The booking link in "Want to talk more?"
+- **Sonar's incoming links:** the Feedback button inside Sedi and Navoro. `respondents.source` already records `embed`; add which app it came from.
+- **Measure:** a simple count per link (shown, clicked, became a creator) per week, so it's clear which connections actually send people across.
+- **Keep it opt-in and plain inside apps that promise on-device data:** one line saying what Sonar is and what it keeps.
+
 **First live test.** A "tell us what you think, just talk" button in Sedi before its Product Hunt launch. This needs the always-on hosting above, and ideally on-device transcription first, so Sedi's privacy promise holds.
 
 **Learning to-dos (not code).**
